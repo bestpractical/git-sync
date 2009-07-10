@@ -1,0 +1,85 @@
+#!/usr/bin/perl
+
+use Config::GitLike::Git;
+use Git;
+use strict;
+use warnings;
+
+my %conf = Config::GitLike::Git->new->load;
+
+my %sync;
+for (keys %conf) {
+    next unless /^sync\.(?:(.*?)\.)?(.*)$/;
+    my ($section, $var) = ($1, $2);
+    $section = "" unless defined $section;
+    $sync{$section}{$var} = $conf{$_};
+}
+
+my %seen;
+for my $name (keys %sync) {
+    print "Syncing" . (length $name ? " $name" : "")."\n";
+    unless ($sync{$name}{host}) {
+        warn "No 'host' set, skipping!\n";
+        next;
+    }
+    unless ($sync{$name}{path}) {
+        warn "No 'path' set, skipping!\n";
+        next;
+    }
+    unless ($sync{$name}{into}) {
+        warn "No 'into' set, skipping!\n";
+        next;
+    }
+    my @paths = ref $sync{$name}{path} ? @{$sync{$name}{path}} : ($sync{$name}{path});
+    for my $path (@paths) {
+        my @list = `ssh $sync{$name}{host} ls $path`;
+        warn("Listing returned ".($? >> 8).", skipping!\n") and next if $?;
+        for my $reponame (@list) {
+            $reponame =~ s/(\.git)?\n?$//;
+            my $root = "$sync{$name}{into}/$reponame";
+            if ($seen{$root}) {
+                warn "Duplicate repository sync location: $seen{$root} and $path/$reponame\n";
+                next;
+            }
+            $seen{$root} = "$path/$reponame";
+
+            if (-e $root) {
+                # Already exists, fetch and possibly rebase
+                my $repo = eval { Git->repository(Directory => $root) };
+                warn("$root not a git repository? $@\n") and next unless $repo;
+
+                warn "Fetching $reponame\n";
+                eval { $repo->command( "fetch" ); };
+                next if $@;
+
+                my $status = "";
+                my ($fh, $ctx) = $repo->command_output_pipe('status');
+                $status .= $_ while (<$fh>);
+                eval {$repo->command_close_pipe($fh, $ctx);};
+
+                # Rebase if there are no changes, it is on a tracking
+                # branch, and the result would be a fast-forward
+                if ($status =~ /^# Your branch is behind '.*?' by \d commits, and can be fast-forwarded/m
+                        and $status =~ /^nothing to commit/m) {
+                    warn "Pulling local working copy\n";
+                    # git-pull is a shell script, unfortunately, and
+                    # thus can't be run via $repo->command( "pull" )
+                    chdir($root);
+                    system("git pull");
+                }
+            } else {
+                Git::command_noisy( clone => "$sync{$name}{host}:$path/$reponame", $root );
+                Git::command( config => "--file", "$root/.git/config", "user.email", $sync{$name}{email} )
+                      if $sync{$name}{email};
+            }
+        }
+    }
+}
+
+__END__
+[sync "bps"]
+	host = fsck.com
+	path = /git
+	path = /git-private
+	into = /home/chmrr/work/bps/git
+        email = alexmv@bestpractical.com
