@@ -15,8 +15,11 @@ for (keys %conf) {
     $sync{$section}{$var} = $conf{$_};
 }
 
+my $synconly = shift ||'';
+
 my %seen;
 for my $name (keys %sync) {
+    next if ($synconly && $name ne $synconly);
     print "Syncing" . (length $name ? " $name" : "")."\n";
     unless ($sync{$name}{host}) {
         warn "No 'host' set, skipping!\n";
