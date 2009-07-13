@@ -78,8 +78,8 @@ for my $name (keys %sync) {
 
 __END__
 [sync "bps"]
-	host = fsck.com
-	path = /git
-	path = /git-private
-	into = /home/chmrr/work/bps/git
-        email = alexmv@bestpractical.com
+    host = fsck.com
+    path = /git
+    path = /git-private
+    into = /home/chmrr/work/bps/git
+    email = alexmv@bestpractical.com
