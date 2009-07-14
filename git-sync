@@ -1,5 +1,15 @@
 #!/usr/bin/env perl
 
+# Simple usage:
+# add the config found after __END__ to your config
+# the script will search like git does, so
+# ./.git/config, ~/.gitconfig, /etc/gitconfig
+#
+# $ git sync
+# syncs all sync sections of your config
+# $ git sync bps
+# syncs only one of the sections
+
 use Config::GitLike::Git;
 use Git;
 use strict;
