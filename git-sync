@@ -65,6 +65,8 @@ for my $name (keys %sync) {
                 eval { $repo->command( "fetch" ); };
                 next if $@;
 
+                next if $repo->config_bool('core.bare');
+
                 my $status = "";
                 my ($fh, $ctx) = $repo->command_output_pipe('status');
                 $status .= $_ while (<$fh>);
