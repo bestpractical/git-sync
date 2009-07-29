@@ -80,7 +80,7 @@ for my $name (keys %sync) {
                     # git-pull is a shell script, unfortunately, and
                     # thus can't be run via $repo->command( "pull" )
                     chdir($root);
-                    system("git pull");
+                    system("git pull --stat");
                 }
             } else {
                 Git::command_noisy( clone => "$sync{$name}{host}:$path/$reponame", $root );
