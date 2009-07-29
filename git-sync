@@ -83,6 +83,8 @@ for my $name (keys %sync) {
                     system("git pull --stat");
                 }
             } else {
+                chomp(my ($ignore) = `ssh $sync{$name}{host} git config --bool -f $path/${reponame}.git/config  sync.ignore`);
+                next if $ignore eq 'true';
                 Git::command_noisy( clone => "$sync{$name}{host}:$path/$reponame", $root );
                 Git::command( config => "--file", "$root/.git/config", "user.email", $sync{$name}{email} )
                       if $sync{$name}{email};
