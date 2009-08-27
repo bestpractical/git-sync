@@ -82,6 +82,9 @@ for my $name (keys %sync) {
                     chdir($root);
                     system("git pull --stat");
                 }
+
+                # Purge old tracking branches
+                $repo->command( qw/remote prune origin/ );
             } else {
                 my ($ignore) = `ssh $sync{$name}{host} git config --bool -f $path/${reponame}.git/config  sync.ignore`;
                 chomp $ignore if defined $ignore;
