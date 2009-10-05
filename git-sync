@@ -75,7 +75,7 @@ for my $name (keys %sync) {
                 # Rebase if there are no changes, it is on a tracking
                 # branch, and the result would be a fast-forward
                 if ($status =~ /^# Your branch is behind '.*?' by \d+ commits?, and can be fast-forwarded/m
-                        and $status =~ /^nothing to commit/m) {
+                        and $status =~ /^nothing (?:added )?to commit/m) {
                     warn "Pulling local working copy\n";
                     # git-pull is a shell script, unfortunately, and
                     # thus can't be run via $repo->command( "pull" )
