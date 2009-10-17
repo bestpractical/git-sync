@@ -115,7 +115,7 @@ sub update {
     # Already exists, fetch and possibly rebase
     my $repo = eval { Git->repository(Directory => $root) };
     unless ($repo) {
-        print $force ? colored("[ Not a git repository! ]\n", "red") : "\r";
+        print $force ? colored("[ Not a git repository! ]\n", "bold red") : "\r";
         return;
     }
 
@@ -129,7 +129,7 @@ sub update {
     }
 
     my $error = $@; chomp $error;
-    print colored("[ Fetch failed! $error]\n", "red") and return if $@;
+    print colored("[ Fetch failed! $error]\n", "bold red") and return if $@;
 
     print colored("[ Fetch ] ", "dark") if $pretend;
 
@@ -193,7 +193,7 @@ sub new {
 
     my $ret = eval { Git::command( [clone => "$sync{$name}{host}:$path/$reponame", $root], STDERR => 0 ) };
     if ($@) {
-        print colored( "[ Clone failed! ]\n", "red");
+        print colored( "[ Clone failed! ]\n", "bold red");
         return;
     }
     Git::command( config => "--file", "$root/.git/config", "user.email", $sync{$name}{email} )
