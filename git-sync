@@ -15,6 +15,12 @@ use Git;
 use strict;
 use warnings;
 use Term::ANSIColor;
+use Getopt::Long;
+
+my ($verbose, $pretend);
+GetOptions(
+    verbose => \$verbose,
+);
 
 my %conf = Config::GitLike::Git->new->load;
 
@@ -65,7 +71,7 @@ sub sync_all_local {
             $root =~ m{/([^/]+)(?:\.git)?$};
             printf "  %-40s ", $1;
             if (exists $seen{$root}) {
-                print "\r";
+                print $verbose ? colored("[ Already synchronized ]\n", "dark") : "\r";
                 next;
             }
             update($root, 0);
@@ -89,7 +95,7 @@ sub sync_all_remote {
                 print colored( "[ Already synchronized! ]\n", "red");
                 next;
             } elsif (exists $seen{$root}) {
-                print "\r";
+                print $verbose ? colored("[ Already synchronized ]\n", "dark") : "\r";
                 next;
             }
             $seen{$root} = $name;
@@ -159,20 +165,20 @@ sub update {
     }
 
     # Purge old tracking branches
-    $repo->command( qw/remote prune origin/ ) unless $gitsvn;
+    $repo->command( qw/remote prune origin/ ) unless $gitsvn or $pretend;
 }
 
 sub new {
     my ($root, $name, $reponame, $path) = @_;
     `ssh $sync{$name}{host} [ -e $path/${reponame}.git/config ]`;
     if ($?) {
-        print "\r";
+        print $verbose ? colored("[ Not a git repository ]\n", "dark") : "\r";
         return;
     }
     my ($ignore) = `ssh $sync{$name}{host} git config --bool -f $path/${reponame}.git/config  sync.ignore`;
     chomp $ignore if defined $ignore;
     if (defined $ignore and $ignore eq 'true') {
-        print "\r";
+        print $verbose ? colored("[ sync.ignore set ]\n", "dark") : "\r";
         return;
     }
 
