@@ -193,3 +193,6 @@ __END__
     path = /git-private
     into = /home/chmrr/work/bps/git
     email = alexmv@bestpractical.com
+[sync "localrepos"]
+    into = /home/chmrr/gitprojects
+    local = true
