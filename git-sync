@@ -20,6 +20,7 @@ use Getopt::Long;
 my ($verbose, $pretend);
 GetOptions(
     verbose => \$verbose,
+    pretend => \$pretend,
 );
 
 my %conf = Config::GitLike::Git->new->load;
@@ -122,11 +123,14 @@ sub update {
     if ($gitsvn) {
         print colored( "[ svn ] ", "dark blue" );
          # git-svn doesn't work with $repo->command, hate
-        `git --git-dir @{[$repo->repo_path]} svn fetch -q`;
+        `git --git-dir @{[$repo->repo_path]} svn fetch -q` unless $pretend;
     } else {
-        eval { $repo->command( ["fetch"], STDERR => 0 ); } if 0;
+        eval { $repo->command( ["fetch"], STDERR => 0 ); } unless $pretend;
     }
+
     print colored("[ Fetch failed! $@]\n", "red") and return if $@;
+
+    print colored("[ Fetch ] ", "dark") if $pretend;
 
     print colored("[ Bare repository ]\n", "green") and return if $repo->config_bool('core.bare');
 
