@@ -130,6 +130,7 @@ sub update {
     # Rebase if there are no changes, it is on a tracking
     # branch, and the result would be a fast-forward
     my ($branch) = $status =~ /^# On branch (.*)/m;
+    $branch ||= 'Not currently on any branch';
     if ($status =~ /^# Your branch is behind '.*?' by \d+ commits?, and can be fast-forwarded/m
             and $status =~ /^nothing (?:added )?to commit/m) {
         # git-pull is a shell script, unfortunately, and
