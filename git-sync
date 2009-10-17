@@ -110,7 +110,7 @@ sub update {
         return;
     }
 
-    my $gitsvn = -d $repo->repo_path . "/svn/git-svn";
+    my $gitsvn = -e $repo->repo_path . "/svn/.metadata";
     if ($gitsvn) {
         print colored( "[ svn ] ", "dark blue" );
          # git-svn doesn't work with $repo->command, hate
