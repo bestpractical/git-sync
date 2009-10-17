@@ -128,7 +128,8 @@ sub update {
         eval { $repo->command( ["fetch"], STDERR => 0 ); } unless $pretend;
     }
 
-    print colored("[ Fetch failed! $@]\n", "red") and return if $@;
+    my $error = $@; chomp $error;
+    print colored("[ Fetch failed! $error]\n", "red") and return if $@;
 
     print colored("[ Fetch ] ", "dark") if $pretend;
 
