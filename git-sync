@@ -188,6 +188,8 @@ sub new {
         return;
     }
 
+    print colored("[ Would clone ]\n", "bold green") and return if $pretend;
+
     eval { Git::command( [clone => "$sync{$name}{host}:$path/$reponame", $root], STDERR => 0 ) };
     if ($@) {
         print colored( "[ Clone failed! ]\n", "red");
