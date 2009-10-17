@@ -14,35 +14,66 @@ use Config::GitLike::Git;
 use Git;
 use strict;
 use warnings;
+use Term::ANSIColor;
 
 my %conf = Config::GitLike::Git->new->load;
 
 my %sync;
 for (keys %conf) {
-    next unless /^sync\.(?:(.*?)\.)?(.*)$/;
-    my ($section, $var) = ($1, $2);
-    $section = "" unless defined $section;
-    $sync{$section}{$var} = $conf{$_};
+    next unless /^sync\.(.*?)\.(.*)$/;
+    $sync{$1}{$2} = $conf{$_};
 }
 
-my $synconly = shift ||'';
+my @categories;
+if (@ARGV) {
+    for my $name (@ARGV) {
+        die qq{Can't find sync named "$name"\n} unless exists $sync{$name};
+        push @categories, $name;
+    }
+} else {
+    @categories = sort {exists $sync{$a}{local} <=> exists $sync{$b}{local} or $a cmp $b} keys %sync;
+}
 
 my %seen;
-for my $name (keys %sync) {
-    next if ($synconly && $name ne $synconly);
-    print "Syncing" . (length $name ? " $name" : "")."\n";
-    unless ($sync{$name}{host}) {
-        warn "No 'host' set, skipping!\n";
-        next;
-    }
-    unless ($sync{$name}{path}) {
-        warn "No 'path' set, skipping!\n";
-        next;
-    }
+for my $name (@categories) {
+    print colored("Syncing" . (length $name ? " $name" : "")."\n", "bold");
+
     unless ($sync{$name}{into}) {
-        warn "No 'into' set, skipping!\n";
+        print colored("  No 'into' set, skipping!\n", "red");
         next;
     }
+    if (exists $sync{$name}{local}) {
+        sync_all_local($name);
+    } else {
+        unless ($sync{$name}{host}) {
+            print colored("  No 'host' set, skipping!\n", "red");
+            next;
+        }
+        unless ($sync{$name}{path}) {
+            print colored("  No 'path' set, skipping!\n", "red");
+            next;
+        }
+        sync_all_remote($name);
+    }
+    print " "x45,"\n";
+}
+
+sub sync_all_local {
+    my $name = shift;
+    for my $root (grep {-d} <$sync{$name}{into}/*>) {
+        $root =~ m{/([^/]+)(?:\.git)?$};
+        printf "  %-40s ", $1;
+        if (exists $seen{$root}) {
+            print "\r";
+            next;
+        }
+        update($root, 0);
+        $seen{$root} = "";
+    }
+}
+
+sub sync_all_remote {
+    my $name = shift;
     my @paths = ref $sync{$name}{path} ? @{$sync{$name}{path}} : ($sync{$name}{path});
     for my $path (@paths) {
         my @list = `ssh $sync{$name}{host} ls $path`;
@@ -50,51 +81,106 @@ for my $name (keys %sync) {
         for my $reponame (@list) {
             $reponame =~ s/(\.git)?\n?$//;
             my $root = "$sync{$name}{into}/$reponame";
+
+            printf "  %-40s ", $reponame;
             if ($seen{$root}) {
-                warn "Duplicate repository sync location: $seen{$root} and $path/$reponame\n";
+                print colored( "[ Already synchronized! ]\n", "red");
+                next;
+            } elsif (exists $seen{$root}) {
+                print "\r";
                 next;
             }
-            $seen{$root} = "$path/$reponame";
-
+            $seen{$root} = $name;
             if (-e $root) {
-                # Already exists, fetch and possibly rebase
-                my $repo = eval { Git->repository(Directory => $root) };
-                warn("$root not a git repository? $@\n") and next unless $repo;
-
-                warn "Fetching $reponame\n";
-                eval { $repo->command( "fetch" ); };
-                next if $@;
-
-                next if $repo->config_bool('core.bare');
-
-                my $status = "";
-                my ($fh, $ctx) = $repo->command_output_pipe('status');
-                $status .= $_ while (<$fh>);
-                eval {$repo->command_close_pipe($fh, $ctx);};
-
-                # Rebase if there are no changes, it is on a tracking
-                # branch, and the result would be a fast-forward
-                if ($status =~ /^# Your branch is behind '.*?' by \d+ commits?, and can be fast-forwarded/m
-                        and $status =~ /^nothing (?:added )?to commit/m) {
-                    warn "Pulling local working copy\n";
-                    # git-pull is a shell script, unfortunately, and
-                    # thus can't be run via $repo->command( "pull" )
-                    chdir($root);
-                    system("git pull --stat");
-                }
-
-                # Purge old tracking branches
-                $repo->command( qw/remote prune origin/ );
+                update($root, 1);
             } else {
-                my ($ignore) = `ssh $sync{$name}{host} git config --bool -f $path/${reponame}.git/config  sync.ignore`;
-                chomp $ignore if defined $ignore;
-                next if defined $ignore and $ignore eq 'true';
-                Git::command_noisy( clone => "$sync{$name}{host}:$path/$reponame", $root );
-                Git::command( config => "--file", "$root/.git/config", "user.email", $sync{$name}{email} )
-                      if $sync{$name}{email};
+                new($root => $name => $reponame => $path);
             }
         }
     }
+}
+
+sub update {
+    my ($root, $force) = @_;
+
+    # Already exists, fetch and possibly rebase
+    my $repo = eval { Git->repository(Directory => $root) };
+    unless ($repo) {
+        print $force ? colored("[ Not a git repository! ]\n", "red") : "\r";
+        return;
+    }
+
+    my $gitsvn = -d $repo->repo_path . "/svn/git-svn";
+    if ($gitsvn) {
+        print colored( "[ svn ] ", "dark blue" );
+         # git-svn doesn't work with $repo->command, hate
+        `git --git-dir @{[$repo->repo_path]} svn fetch -q`;
+    } else {
+        eval { $repo->command( ["fetch"], STDERR => 0 ); } if 0;
+    }
+    print colored("[ Fetch failed! $@]\n", "red") and return if $@;
+
+    print colored("[ Bare repository ]\n", "green") and return if $repo->config_bool('core.bare');
+
+    my $status = "";
+    my ($fh, $ctx) = $repo->command_output_pipe('status');
+    $status .= $_ while (<$fh>);
+    eval {$repo->command_close_pipe($fh, $ctx);};
+
+    # Rebase if there are no changes, it is on a tracking
+    # branch, and the result would be a fast-forward
+    my ($branch) = $status =~ /^# On branch (.*)/m;
+    if ($status =~ /^# Your branch is behind '.*?' by \d+ commits?, and can be fast-forwarded/m
+            and $status =~ /^nothing (?:added )?to commit/m) {
+        # git-pull is a shell script, unfortunately, and
+        # thus can't be run via $repo->command( "pull" )
+        chdir($root);
+        print colored( "[ Pulled ($branch) ]\n", "bold green" );
+        my $pull = `git pull --stat`;
+        # Indent, and colorize (git doesn't, because we're not a tty)
+        $pull =~ s/^/    /gm;
+        $pull =~ s/^(  .*?)(\+*)(-*)$/$1.colored($2,"green").colored($3,"red")/gme;
+        print $pull;
+    } else {
+        if ($status =~ /^# Your branch and '.*?' have diverged.*?(\d+) and (\d+) different commit/sm) {
+            print colored( "[ Diverged by $1 and $2 commits ($branch) ]", "bold blue" );
+        } elsif ($status =~ /^# Your branch is ahead /m) {
+            print colored( "[ Ahead ($branch) ]", "bold blue");
+        } else {
+            print colored( "[ Up-to-date ($branch) ]", "green");
+        }
+        if ($status !~ /^nothing (?:added )?to commit/m) {
+            print colored( " [ Dirty ]", "yellow");
+        }
+        print "\n";
+    }
+
+    # Purge old tracking branches
+    $repo->command( qw/remote prune origin/ ) unless $gitsvn;
+}
+
+sub new {
+    my ($root, $name, $reponame, $path) = @_;
+    `ssh $sync{$name}{host} [ -e $path/${reponame}.git/config ]`;
+    if ($?) {
+        print "\r";
+        return;
+    }
+    my ($ignore) = `ssh $sync{$name}{host} git config --bool -f $path/${reponame}.git/config  sync.ignore`;
+    chomp $ignore if defined $ignore;
+    if (defined $ignore and $ignore eq 'true') {
+        print "\r";
+        return;
+    }
+
+    eval { Git::command( [clone => "$sync{$name}{host}:$path/$reponame", $root], STDERR => 0 ) };
+    if ($@) {
+        print colored( "[ Clone failed! ]\n", "red");
+        return;
+    }
+    Git::command( config => "--file", "$root/.git/config", "user.email", $sync{$name}{email} )
+          if $sync{$name}{email};
+    print colored( "[ Cloned! ]\n", "bold green");
 }
 
 __END__
