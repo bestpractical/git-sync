@@ -60,15 +60,17 @@ for my $name (@categories) {
 
 sub sync_all_local {
     my $name = shift;
-    for my $root (grep {-d} <$sync{$name}{into}/*>) {
-        $root =~ m{/([^/]+)(?:\.git)?$};
-        printf "  %-40s ", $1;
-        if (exists $seen{$root}) {
-            print "\r";
-            next;
+    foreach my $into ( ref $sync{$name}{into} ? @{$sync{$name}{into}} : $sync{$name}{into} ) {
+        for my $root (grep {-d} <$into/*>) {
+            $root =~ m{/([^/]+)(?:\.git)?$};
+            printf "  %-40s ", $1;
+            if (exists $seen{$root}) {
+                print "\r";
+                next;
+            }
+            update($root, 0);
+            $seen{$root} = "";
         }
-        update($root, 0);
-        $seen{$root} = "";
     }
 }
 
