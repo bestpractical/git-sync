@@ -157,8 +157,10 @@ sub update {
     } else {
         if ($status =~ /^# Your branch and '.*?' have diverged.*?(\d+) and (\d+) different commit/sm) {
             print colored( "[ Diverged by $1 and $2 commits ($branch) ]", "bold blue" );
-        } elsif ($status =~ /^# Your branch is ahead of '(?:.*?)' by (\d+) commit/m) {
+        } elsif ($status =~ /^# Your branch is ahead of '.*?' by (\d+) commit/m) {
             print colored( "[ Ahead by $1 ($branch) ]", "bold blue");
+        } elsif ($status =~ /^# Your branch is behind '.*?' by (\d+) commit/m) {
+            print colored( "[ Behind by $1 ($branch) ]", "bold blue");
         } else {
             print colored( "[ Up-to-date ($branch) ]", "green");
         }
