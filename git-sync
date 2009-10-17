@@ -148,10 +148,10 @@ sub update {
         # git-pull is a shell script, unfortunately, and
         # thus can't be run via $repo->command( "pull" )
         chdir($root);
-        print colored( "[ Pulled ($branch) ]\n", "bold green" );
-        my $pull = `git pull --stat`;
+        print colored( $pretend ? "[ Would pull ($branch) ]\n" : "[ Pulled ($branch) ]\n", "bold green" );
+        my $pull = $pretend ? "" : `git pull --stat`;
         # Indent, and colorize (git doesn't, because we're not a tty)
-        $pull =~ s/^/    /gm;
+        $pull =~ s/^/    /gm if length $pull;
         $pull =~ s/^(  .*?)(\+*)(-*)$/$1.colored($2,"green").colored($3,"red")/gme;
         print $pull;
     } else {
