@@ -16,6 +16,7 @@ use strict;
 use warnings;
 use Term::ANSIColor;
 use Getopt::Long;
+use LWP::Simple qw();
 
 my ($verbose, $pretend);
 GetOptions(
@@ -49,6 +50,8 @@ for my $name (@categories) {
         print colored("  No 'into' set, skipping!\n", "red");
     } elsif (exists $sync{$name}{local}) {
         sync_all_local(%{$sync{$name}});
+    } elsif (exists $sync{$name}{github}) {
+        sync_all_github(%{$sync{$name}});
     } else {
         sync_all_remote(%{$sync{$name}});
     }
@@ -63,6 +66,41 @@ sub sync_all_local {
             printf "  %-40s ", $1;
             next if already($root => 0);
             update($root, 0);
+        }
+    }
+}
+
+sub sync_all_github {
+    my %config = @_;
+
+    print colored("  Only one value valid for 'into' when 'guthub' supplied", "red") and return
+        if ref $config{into};
+
+    my $decoder = eval { require JSON::Any; JSON::Any->import; JSON::Any->new };
+    print colored("  GitHub sync support requires the JSON::Any module\n", "red") and return
+        if $@ or not $decoder;
+
+    my @accounts = ref $config{github} ? @{$config{github}} : ($config{github});
+    for my $acct (@accounts) {
+        my $content = LWP::Simple::get("http://github.com/api/v1/json/$acct");
+        print colored("GET of http://github.com/api/v1/json/$acct failed!\n", "bold red") and return
+            unless defined $content;
+
+        my $data = eval {$decoder->jsonToObj($content)};
+        print colored("Parsing of GitHub JSON response failed! $@\n", "bold red")."\n$content\n" and return
+            unless defined $data;
+
+        for my $repo (@{$data->{user}{repositories} || []}) {
+            my $reponame = $repo->{name};
+            my $root = "$config{into}/$reponame";
+
+            printf "  %-40s ", $reponame;
+            next if already($root => 1);
+            if (-e $root) {
+                update($root, 1);
+            } else {
+                new($root => "git\@github.com:$acct/$reponame.git" => $config{email});
+            }
         }
     }
 }
