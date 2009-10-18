@@ -19,8 +19,8 @@ use Getopt::Long;
 
 my ($verbose, $pretend);
 GetOptions(
-    verbose => \$verbose,
-    pretend => \$pretend,
+    'verbose|v' => \$verbose,
+    'pretend|dry-run' => \$pretend,
 );
 
 my %conf = Config::GitLike::Git->new->load;
