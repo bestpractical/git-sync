@@ -250,3 +250,6 @@ __END__
 [sync "localrepos"]
     into = /home/chmrr/gitprojects
     local = true
+[sync "github"]
+    into = /home/chmrr/github
+    github = alexmv
