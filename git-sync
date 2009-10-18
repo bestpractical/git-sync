@@ -217,14 +217,14 @@ sub update {
     } else {
         my $logs = "";
         if ($status =~ /^# Your branch and '.*?' have diverged.*?(\d+) and (\d+) different commit/sm) {
-            print colored( "[ Diverged by $1 and $2 commits ($branch) ]", "bold blue" );
+            print colored( "[ Diverged by $1 and $2 commits ($branch) ]", "bold cyan" );
         } elsif ($status =~ /^# Your branch is ahead of '(.*?)' by (\d+) commit/m) {
             my ($tracking, $ahead) = ($1, $2);
             print colored( "[ Ahead by $ahead ($branch) ]", "bold blue");
             $logs = logs($repo, $tracking => $branch);
         } elsif ($status =~ /^# Your branch is behind '(.*?)' by (\d+) commit/m) {
             my ($tracking, $behind) = ($1, $2);
-            print colored( "[ Behind by $behind ($branch) ]", "bold blue");
+            print colored( "[ Behind by $behind ($branch) ]", "bold magenta");
             $logs = logs($repo, $branch => $tracking);
         } else {
             print colored( "[ Up-to-date ($branch) ]", "green");
