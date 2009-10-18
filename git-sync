@@ -83,11 +83,11 @@ sub sync_all_github {
     my @accounts = ref $config{github} ? @{$config{github}} : ($config{github});
     for my $acct (@accounts) {
         my $content = LWP::Simple::get("http://github.com/api/v1/json/$acct");
-        print colored("GET of http://github.com/api/v1/json/$acct failed!\n", "bold red") and return
+        print colored("  GET of http://github.com/api/v1/json/$acct failed!\n", "bold red") and next
             unless defined $content;
 
         my $data = eval {$decoder->jsonToObj($content)};
-        print colored("Parsing of GitHub JSON response failed! $@\n", "bold red")."\n$content\n" and return
+        print colored("  Parsing of GitHub JSON response failed! $@\n", "bold red")."\n$content\n" and next
             unless defined $data;
 
         for my $repo (@{$data->{user}{repositories} || []}) {
