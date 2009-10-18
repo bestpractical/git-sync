@@ -61,12 +61,8 @@ sub sync_all_local {
         for my $root (grep {-d} <$into/*>) {
             $root =~ m{/([^/]+)(?:\.git)?$};
             printf "  %-40s ", $1;
-            if (exists $seen{$root}) {
-                print $verbose ? colored("[ Already synchronized ]\n", "dark") : "\r";
-                next;
-            }
+            next if already($root => 0);
             update($root, 0);
-            $seen{$root} = "";
         }
     }
 }
@@ -92,14 +88,7 @@ sub sync_all_remote {
             my $into = "$config{into}/$reponame";
 
             printf "  %-40s ", $reponame;
-            if ($seen{$into}) {
-                print colored( "[ Already synchronized! ]\n", "red");
-                next;
-            } elsif (exists $seen{$into}) {
-                print $verbose ? colored("[ Already synchronized ]\n", "dark") : "\r";
-                next;
-            }
-            $seen{$into} = $into;
+            next if already($into => 1);
             if (-e $into) {
                 update($into, 1);
             } else {
@@ -116,6 +105,19 @@ sub sync_all_remote {
             }
         }
     }
+}
+
+sub already {
+    my ($path, $force) = @_;
+    if ($force and $seen{$path}) {
+        print colored( "[ Already synchronized! ]\n", "red");
+        return 1;
+    } elsif (exists $seen{$path}) {
+        print $verbose ? colored("[ Already synchronized ]\n", "dark") : "\r";
+        return 1;
+    }
+    $seen{$path} = $force;
+    return;
 }
 
 sub update {
