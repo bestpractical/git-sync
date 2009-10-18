@@ -45,29 +45,19 @@ my %seen;
 for my $name (@categories) {
     print colored("Syncing" . (length $name ? " $name" : "")."\n", "bold");
 
-    unless ($sync{$name}{into}) {
+    if (not $sync{$name}{into}) {
         print colored("  No 'into' set, skipping!\n", "red");
-        next;
-    }
-    if (exists $sync{$name}{local}) {
-        sync_all_local($name);
+    } elsif (exists $sync{$name}{local}) {
+        sync_all_local(%{$sync{$name}});
     } else {
-        unless ($sync{$name}{host}) {
-            print colored("  No 'host' set, skipping!\n", "red");
-            next;
-        }
-        unless ($sync{$name}{path}) {
-            print colored("  No 'path' set, skipping!\n", "red");
-            next;
-        }
-        sync_all_remote($name);
+        sync_all_remote(%{$sync{$name}});
     }
     print " "x45,"\n";
 }
 
 sub sync_all_local {
-    my $name = shift;
-    foreach my $into ( ref $sync{$name}{into} ? @{$sync{$name}{into}} : $sync{$name}{into} ) {
+    my %config = @_;
+    foreach my $into ( ref $config{into} ? @{$config{into}} : $config{into} ) {
         for my $root (grep {-d} <$into/*>) {
             $root =~ m{/([^/]+)(?:\.git)?$};
             printf "  %-40s ", $1;
@@ -82,37 +72,47 @@ sub sync_all_local {
 }
 
 sub sync_all_remote {
-    my $name = shift;
-    my @paths = ref $sync{$name}{path} ? @{$sync{$name}{path}} : ($sync{$name}{path});
+    my %config = @_;
+
+    print colored("  No 'host' set, skipping!\n", "red") and return
+        unless $config{host};
+
+    print colored("  No 'path' set, skipping!\n", "red") and return
+        unless $config{path};
+
+    print colored("  Only one value valid for 'into' when 'host' supplied!\n", "red") and return
+        if ref $config{into};
+
+    my @paths = ref $config{path} ? @{$config{path}} : ($config{path});
     for my $path (@paths) {
-        my @list = `ssh $sync{$name}{host} ls $path`;
+        my @list = `ssh $config{host} ls $path`;
         warn("Listing returned ".($? >> 8).", skipping!\n") and next if $?;
         for my $reponame (@list) {
             $reponame =~ s/(\.git)?\n?$//;
-            my $root = "$sync{$name}{into}/$reponame";
+            my $into = "$config{into}/$reponame";
 
             printf "  %-40s ", $reponame;
-            if ($seen{$root}) {
+            if ($seen{$into}) {
                 print colored( "[ Already synchronized! ]\n", "red");
                 next;
-            } elsif (exists $seen{$root}) {
+            } elsif (exists $seen{$into}) {
                 print $verbose ? colored("[ Already synchronized ]\n", "dark") : "\r";
                 next;
             }
-            $seen{$root} = $name;
-            if (-e $root) {
-                update($root, 1);
+            $seen{$into} = $into;
+            if (-e $into) {
+                update($into, 1);
             } else {
-                `ssh $sync{$name}{host} [ -e $path/${reponame}.git/config ]`;
+                `ssh $config{host} [ -e $path/${reponame}.git/config ]`;
                 print $verbose ? colored("[ Not a git repository ]\n", "dark") : "\r" and next
                     if $?;
 
-                my ($ignore) = `ssh $sync{$name}{host} git config --bool -f $path/${reponame}.git/config  sync.ignore`;
+                my ($ignore) = `ssh $config{host} git config --bool -f $path/${reponame}.git/config sync.ignore`;
                 chomp $ignore if defined $ignore;
                 print $verbose ? colored("[ sync.ignore set ]\n", "dark") : "\r" and next
                     if defined $ignore and $ignore eq 'true';
 
-                new($root => "$sync{$name}{host}:$path/$reponame", $sync{$name}{email});
+                new($into => "$config{host}:$path/$reponame", $config{email});
             }
         }
     }
