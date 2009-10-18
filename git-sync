@@ -18,10 +18,11 @@ use Term::ANSIColor;
 use Getopt::Long;
 use LWP::Simple qw();
 
-my ($verbose, $pretend);
+my ($verbose, $pretend, $log);
 GetOptions(
     'verbose|v' => \$verbose,
     'pretend|dry-run' => \$pretend,
+    'log|l' => \$log,
 );
 
 my %conf = Config::GitLike::Git->new->load;
@@ -193,31 +194,45 @@ sub update {
     # branch, and the result would be a fast-forward
     my ($branch) = $status =~ /^# On branch (.*)/m;
     $branch ||= 'Not currently on any branch';
-    if ($status =~ /^# Your branch is behind '.*?' by \d+ commits?, and can be fast-forwarded/m
-            and $status =~ /^nothing (?:added )?to commit/m) {
+    if ($status =~ /^nothing (?:added )?to commit/m
+            and $status =~ /^# Your branch is behind '(.*?)' by (\d+) commits?, and can be fast-forwarded/m) {
+        my ($tracking, $behind) = ($1, $2);
         # git-pull is a shell script, unfortunately, and
         # thus can't be run via $repo->command( "pull" )
         chdir($root);
-        print colored( $pretend ? "[ Would pull ($branch) ]\n" : "[ Pulled ($branch) ]\n", "bold green" );
+        print colored( $pretend ?
+                           "[ Would pull $behind commits ($branch) ]\n" :
+                           "[ Pulled $behind commits ($branch) ]\n",
+                       "bold green" );
+
+        print logs($repo, $branch => $tracking);
+
         my $pull = $pretend ? "" : `git pull --stat`;
+        # This line will always be present, and is content-free
+        $pull =~ s/^First, rewinding head.*?\n//m;
         # Indent, and colorize (git doesn't, because we're not a tty)
+        $pull =~ s/^( .*?)(\+*)(-*)$/$1.colored($2,"green").colored($3,"red")/gme;
         $pull =~ s/^/    /gm if length $pull;
-        $pull =~ s/^(  .*?)(\+*)(-*)$/$1.colored($2,"green").colored($3,"red")/gme;
         print $pull;
     } else {
+        my $logs = "";
         if ($status =~ /^# Your branch and '.*?' have diverged.*?(\d+) and (\d+) different commit/sm) {
             print colored( "[ Diverged by $1 and $2 commits ($branch) ]", "bold blue" );
-        } elsif ($status =~ /^# Your branch is ahead of '.*?' by (\d+) commit/m) {
-            print colored( "[ Ahead by $1 ($branch) ]", "bold blue");
-        } elsif ($status =~ /^# Your branch is behind '.*?' by (\d+) commit/m) {
-            print colored( "[ Behind by $1 ($branch) ]", "bold blue");
+        } elsif ($status =~ /^# Your branch is ahead of '(.*?)' by (\d+) commit/m) {
+            my ($tracking, $ahead) = ($1, $2);
+            print colored( "[ Ahead by $ahead ($branch) ]", "bold blue");
+            $logs = logs($repo, $tracking => $branch);
+        } elsif ($status =~ /^# Your branch is behind '(.*?)' by (\d+) commit/m) {
+            my ($tracking, $behind) = ($1, $2);
+            print colored( "[ Behind by $behind ($branch) ]", "bold blue");
+            $logs = logs($repo, $branch => $tracking);
         } else {
             print colored( "[ Up-to-date ($branch) ]", "green");
         }
         if ($status !~ /^nothing (?:added )?to commit/m) {
             print colored( " [ Dirty ]", "yellow");
         }
-        print "\n";
+        print "\n$logs";
     }
 
     # Purge old tracking branches
@@ -238,6 +253,15 @@ sub new {
     Git::command( config => "--file", "$into/.git/config", "user.email", $email )
           if $email;
     print colored( "[ Cloned! ]\n", "bold green");
+}
+
+sub logs {
+    my ($repo, $from, $to) = @_;
+    return "" unless $log;
+    my $logmsg = $repo->command( log => "--oneline", "--reverse", "$from..$to" );
+    # Re-colorize and indent
+    $logmsg =~ s/^(\S+)/"    ".colored($1,"yellow")/egm;
+    return $logmsg;
 }
 
 __END__
