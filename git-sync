@@ -103,7 +103,16 @@ sub sync_all_remote {
             if (-e $root) {
                 update($root, 1);
             } else {
-                new($root => $name => $reponame => $path);
+                `ssh $sync{$name}{host} [ -e $path/${reponame}.git/config ]`;
+                print $verbose ? colored("[ Not a git repository ]\n", "dark") : "\r" and next
+                    if $?;
+
+                my ($ignore) = `ssh $sync{$name}{host} git config --bool -f $path/${reponame}.git/config  sync.ignore`;
+                chomp $ignore if defined $ignore;
+                print $verbose ? colored("[ sync.ignore set ]\n", "dark") : "\r" and next
+                    if defined $ignore and $ignore eq 'true';
+
+                new($root => "$sync{$name}{host}:$path/$reponame", $sync{$name}{email});
             }
         }
     }
@@ -176,28 +185,18 @@ sub update {
 }
 
 sub new {
-    my ($root, $name, $reponame, $path) = @_;
-    `ssh $sync{$name}{host} [ -e $path/${reponame}.git/config ]`;
-    if ($?) {
-        print $verbose ? colored("[ Not a git repository ]\n", "dark") : "\r";
-        return;
-    }
-    my ($ignore) = `ssh $sync{$name}{host} git config --bool -f $path/${reponame}.git/config  sync.ignore`;
-    chomp $ignore if defined $ignore;
-    if (defined $ignore and $ignore eq 'true') {
-        print $verbose ? colored("[ sync.ignore set ]\n", "dark") : "\r";
-        return;
-    }
+    # Path to clone into, path to clone from, user
+    my ($into, $from, $email) = @_;
 
-    print colored("[ Would clone ]\n", "bold green") and return if $pretend;
+    print colored("[ Would clone $from into $into ]\n", "bold green") and return if $pretend;
 
-    my $ret = eval { Git::command( [clone => "$sync{$name}{host}:$path/$reponame", $root], STDERR => 0 ) };
+    my $ret = eval { Git::command( [clone => $from => $into], STDERR => 0 ) };
     if ($@) {
         print colored( "[ Clone failed! ]\n", "bold red");
         return;
     }
-    Git::command( config => "--file", "$root/.git/config", "user.email", $sync{$name}{email} )
-          if $sync{$name}{email};
+    Git::command( config => "--file", "$into/.git/config", "user.email", $email )
+          if $email;
     print colored( "[ Cloned! ]\n", "bold green");
 }
 
