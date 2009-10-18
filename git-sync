@@ -82,7 +82,7 @@ sub sync_all_remote {
     my @paths = ref $config{path} ? @{$config{path}} : ($config{path});
     for my $path (@paths) {
         my @list = `ssh $config{host} ls $path`;
-        warn("Listing returned ".($? >> 8).", skipping!\n") and next if $?;
+        print colored("  Listing returned ".($? >> 8).", skipping!\n", "bold red") and next if $?;
         for my $reponame (@list) {
             $reponame =~ s/(\.git)?\n?$//;
             my $into = "$config{into}/$reponame";
