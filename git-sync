@@ -73,7 +73,7 @@ sub sync_all_local {
 sub sync_all_github {
     my %config = @_;
 
-    print colored("  Only one value valid for 'into' when 'guthub' supplied", "red") and return
+    print colored("  Only one value valid for 'into' when 'github' supplied", "red") and return
         if ref $config{into};
 
     my $decoder = eval { require JSON::Any; JSON::Any->import; JSON::Any->new };
