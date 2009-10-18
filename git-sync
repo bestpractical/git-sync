@@ -230,7 +230,7 @@ sub new {
 
     print colored("[ Would clone $from into $into ]\n", "bold green") and return if $pretend;
 
-    my $ret = eval { Git::command( [clone => $from => $into], STDERR => 0 ) };
+    my $ret = eval { Git::command( [clone => "-q" => $from => $into], STDERR => 0 ) };
     if ($@) {
         print colored( "[ Clone failed! ]\n", "bold red");
         return;
