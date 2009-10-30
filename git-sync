@@ -67,6 +67,10 @@ for my $name (@categories) {
 sub sync_all_local {
     my %config = @_;
     foreach my $into ( ref $config{into} ? @{$config{into}} : $config{into} ) {
+        unless (-d $into) {
+            print colored("  Directory '$into' does not exist!\n", "bold red");
+            next;
+        }
         for my $root (grep {-d} <$into/*>) {
             $root =~ m{/([^/]+)(?:\.git)?$};
             printf "  %-40s ", $1;
@@ -81,6 +85,12 @@ sub sync_all_github {
 
     print colored("  Only one value valid for 'into' when 'github' supplied", "red") and return
         if ref $config{into};
+
+    unless (-d $config{into}) {
+        print colored("  Creating directory '$config{into}'\n", "bold");
+        print colored("  Directory creation failed: $!\n", "bold red") and return
+            unless mkdir $config{into};
+    }
 
     my $decoder = eval { require JSON::Any; JSON::Any->import; JSON::Any->new };
     print colored("  GitHub sync support requires the JSON::Any module\n", "red") and return
@@ -122,6 +132,12 @@ sub sync_all_remote {
 
     print colored("  Only one value valid for 'into' when 'host' supplied!\n", "red") and return
         if ref $config{into};
+
+    unless (-d $config{into}) {
+        print colored("  Creating directory '$config{into}'\n", "bold");
+        print colored("  Directory creation failed: $!\n", "bold red") and return
+            unless mkdir $config{into};
+    }
 
     my @paths = ref $config{path} ? @{$config{path}} : ($config{path});
     for my $path (@paths) {
