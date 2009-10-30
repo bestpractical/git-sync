@@ -17,6 +17,7 @@ use warnings;
 use Term::ANSIColor;
 use Getopt::Long;
 use LWP::Simple qw();
+use File::Path qw();
 
 $SIG{INT} = sub {
     print colored("\n\nInterrupted!\n", "bold red");
@@ -89,7 +90,7 @@ sub sync_all_github {
     unless (-d $config{into}) {
         print colored("  Creating directory '$config{into}'\n", "bold");
         print colored("  Directory creation failed: $!\n", "bold red") and return
-            unless mkdir $config{into};
+            unless eval { File::Path::mkpath($config{into}) };
     }
 
     my $decoder = eval { require JSON::Any; JSON::Any->import; JSON::Any->new };
@@ -136,7 +137,7 @@ sub sync_all_remote {
     unless (-d $config{into}) {
         print colored("  Creating directory '$config{into}'\n", "bold");
         print colored("  Directory creation failed: $!\n", "bold red") and return
-            unless mkdir $config{into};
+            unless eval { File::Path::mkpath($config{into}) };
     }
 
     my @paths = ref $config{path} ? @{$config{path}} : ($config{path});
