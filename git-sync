@@ -272,6 +272,7 @@ sub new {
     my $ret = eval { Git::command( [clone => "-q" => $from => $into], STDERR => 0 ) };
     if ($@) {
         print colored( "[ Clone failed! ]\n", "bold red");
+        print colored( "Error: $@\n", "red") if ($verbose);
         return;
     }
     kill $? & 127, $$ if $? & 127;
