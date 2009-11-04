@@ -116,7 +116,11 @@ sub sync_all_github {
             if (-e $root) {
                 update($root, 1);
             } else {
-                new($root => "git\@github.com:$acct/$reponame.git" => $config{email});
+                my $auth = new($root => "git\@github.com:$acct/$reponame.git" => $config{email});
+                unless ($auth) {
+                    printf "  %-40s ", "...trying again, anonymously";
+                    new($root => "git://github.com/$acct/$reponame.git" => $config{email});
+                }
             }
         }
     }
