@@ -265,6 +265,7 @@ sub update {
 sub new {
     # Path to clone into, path to clone from, user
     my ($into, $from, $email) = @_;
+    local $?;
 
     print colored("[ Would clone $from into $into ]\n", "bold green") and return if $pretend;
 
