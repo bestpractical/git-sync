@@ -267,19 +267,20 @@ sub new {
     my ($into, $from, $email) = @_;
     local $?;
 
-    print colored("[ Would clone $from into $into ]\n", "bold green") and return if $pretend;
+    print colored("[ Would clone $from into $into ]\n", "bold green") and return 1 if $pretend;
 
     my $ret = eval { Git::command( [clone => "-q" => $from => $into], STDERR => 0 ) };
     if ($@) {
         print colored( "[ Clone failed! ]\n", "bold red");
         print colored( "Error: $@\n", "red") if ($verbose);
-        return;
+        return undef;
     }
     kill $? & 127, $$ if $? & 127;
 
     Git::command( config => "--file", "$into/.git/config", "user.email", $email )
           if $email;
     print colored( "[ Cloned! ]\n", "bold green");
+    return 1;
 }
 
 sub logs {
