@@ -116,10 +116,10 @@ sub sync_all_github {
             if (-e $root) {
                 update($root, 1);
             } else {
-                my $auth = new($root => "git\@github.com:$acct/$reponame.git" => $config{email});
+                my $auth = clone($root => "git\@github.com:$acct/$reponame.git" => $config{email});
                 unless ($auth) {
                     printf "  %-40s ", "...trying again, anonymously";
-                    new($root => "git://github.com/$acct/$reponame.git" => $config{email});
+                    clone($root => "git://github.com/$acct/$reponame.git" => $config{email});
                 }
             }
         }
@@ -166,7 +166,7 @@ sub sync_all_remote {
                 print $verbose ? colored("[ sync.ignore set ]\n", "dark") : "\r" and next
                     if defined $ignore and $ignore eq 'true';
 
-                new($into => "$config{host}:$path/$reponame", $config{email});
+                clone($into => "$config{host}:$path/$reponame", $config{email});
             }
         }
     }
@@ -266,7 +266,7 @@ sub update {
 
 }
 
-sub new {
+sub clone {
     # Path to clone into, path to clone from, user
     my ($into, $from, $email) = @_;
     local $?;
