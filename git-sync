@@ -203,7 +203,7 @@ sub update {
     } else {
         my $ret = eval { $repo->command( [qw/remote update --prune/], STDERR => 0 ); } unless $pretend;
     }
-    kill $? & 127, $$ if $? & 127;
+    kill $? & 127, $$ if $? & 127; # Propagate the signal it died with, if any
 
     my $error = $@; chomp $error;
     print colored("[ Fetch failed! $error]\n", "bold red") and return if $@;
@@ -235,7 +235,7 @@ sub update {
         print logs($repo, $branch => $tracking);
 
         my $pull = $pretend ? "" : `git pull --stat`;
-        kill $? & 127, $$ if $? & 127;
+        kill $? & 127, $$ if $? & 127; # Propagate the signal it died with, if any
 
         # This line will always be present, and is content-free
         $pull =~ s/^First, rewinding head.*?\n//m;
@@ -279,7 +279,7 @@ sub clone {
         print colored( "Error: $@\n", "red") if ($verbose);
         return undef;
     }
-    kill $? & 127, $$ if $? & 127;
+    kill $? & 127, $$ if $? & 127; # Propagate the signal it died with, if any
 
     Git::command( config => "--file", "$into/.git/config", "user.email", $email )
           if $email;
