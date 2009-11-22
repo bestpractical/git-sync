@@ -22,6 +22,7 @@ $SIG{INT} = sub {
     print colored("\n\nInterrupted!\n", "bold red");
     exit;
 };
+$SIG{USR1} = 'IGNORE';
 
 my ($verbose, $pretend, $log);
 GetOptions(
@@ -173,7 +174,7 @@ sub sync_all_remote {
     }
 
     # Shut down master connection
-    system "ssh", "-O", "exit", $config{host}
+    `ssh -O exit $config{host} 2>&1`
         if $pid and kill 0, $pid;
 }
 
