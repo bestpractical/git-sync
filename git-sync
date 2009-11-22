@@ -55,12 +55,12 @@ for my $name (@categories) {
 
     if (not $sync{$name}{into}) {
         print colored("  No 'into' set, skipping!\n", "red");
-    } elsif (exists $sync{$name}{local}) {
-        sync_all_local(%{$sync{$name}});
+    } elsif (exists $sync{$name}{host}) {
+        sync_all_remote(%{$sync{$name}});
     } elsif (exists $sync{$name}{github}) {
         sync_all_github(%{$sync{$name}});
     } else {
-        sync_all_remote(%{$sync{$name}});
+        sync_all_local(%{$sync{$name}});
     }
     print " "x45,"\n";
 }
