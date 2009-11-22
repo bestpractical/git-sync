@@ -118,7 +118,7 @@ value.
 
 Be more verbose about which repositories are skipped, and why.
 
-=item C<--pretend> or C<--dry-run>
+=item C<--pretend> or C<--dry-run> or C<-n>
 
 Remote repositories are not fetched from; the list of repositories
 that would be synchronized is listed, and their state.  Note that
@@ -161,7 +161,7 @@ $SIG{USR1} = 'IGNORE';
 my ($verbose, $pretend, $log, $help);
 GetOptions(
     'verbose|v' => \$verbose,
-    'pretend|dry-run' => \$pretend,
+    'pretend|dry-run|n' => \$pretend,
     'log|l' => \$log,
     'help|h' => \$help,
 ) or pod2usage( -verbose => 1 );
