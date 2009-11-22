@@ -129,9 +129,6 @@ sub sync_all_github {
 sub sync_all_remote {
     my %config = @_;
 
-    print colored("  No 'host' set, skipping!\n", "red") and return
-        unless $config{host};
-
     print colored("  No 'path' set, skipping!\n", "red") and return
         unless $config{path};
 
