@@ -146,11 +146,13 @@ categories.
 use Git;
 use strict;
 use warnings;
-use Term::ANSIColor;
+use Term::ANSIColor qw//;
 use Getopt::Long;
 use Pod::Usage;
 use LWP::Simple qw();
 use File::Path qw();
+
+sub colored { (-t STDOUT) ? Term::ANSIColor::colored(@_) : $_[0] }
 
 $SIG{INT} = sub {
     print colored("\n\nInterrupted!\n", "bold red");
