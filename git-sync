@@ -10,7 +10,6 @@
 # $ git sync bps
 # syncs only one of the sections
 
-use Config::GitLike::Git;
 use Git;
 use strict;
 use warnings;
@@ -31,12 +30,12 @@ GetOptions(
     'log|l' => \$log,
 );
 
-my %conf = Config::GitLike::Git->new->load;
-
 my %sync;
-for (keys %conf) {
-    next unless /^sync\.(.*?)\.(.*)$/;
-    $sync{$1}{$2} = $conf{$_};
+for (split /\0/, `git config -z --get-regexp ^sync\\\\.`) {
+    next unless /^sync\.(.*?)\.([^\n]*)(?:\n(.*))?/;
+    $sync{$1}{$2} = exists $sync{$1}{$2}
+        ? ref $sync{$1}{$2} ? [@{$sync{$1}{$2}}, $3] : [$sync{$1}{$2}, $3]
+        : $3;
 }
 
 my @categories;
