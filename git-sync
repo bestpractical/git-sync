@@ -231,9 +231,9 @@ sub sync_all_github {
             unless eval { File::Path::mkpath($config{into}) };
     }
 
-    my $decoder = eval { require JSON::Any; JSON::Any->import; JSON::Any->new };
+    my $decoder = get_json_decoder();
     print colored("  GitHub sync support requires the JSON::Any module\n", "red") and return
-        if $@ or not $decoder;
+        if not $decoder;
 
     my @accounts = ref $config{github} ? @{$config{github}} : ($config{github});
     for my $acct (@accounts) {
@@ -260,8 +260,27 @@ sub sync_all_github {
                     clone($root => "git://github.com/$acct/$reponame.git" => $config{email});
                 }
             }
+            #    my @clones = get_github_clone_list($acct, $reponame);
+            #add_new_github_remotes(@clones); 
+
         }
     }
+}
+
+
+sub get_github_clone_list {
+    my $user = shift;
+    my $repo = shift;
+    my @owners;
+    my $decoder = get_json_decoder();
+    my $content = LWP::Simple::get("http://github.com/api/v2/json/repos/show/$user/$repo/network");
+    my $data    = eval { $decoder->jsonToObj($content) };
+    print colored( "  Parsing of GitHub JSON response failed! $@\n", "bold red" ) . "\n$content\n" and next
+        unless defined $data;
+    foreach my $record ( @{ $data->{network} } ) {
+        push @owners, $record->{owner} unless $record->{owner} eq $user;
+    }
+    return @owners;
 }
 
 sub sync_all_remote {
@@ -473,4 +492,11 @@ sub logs {
     # Re-colorize and indent
     $logmsg =~ s/^(\S+)/"    ".colored($1,"yellow")/egm;
     return $logmsg;
+}
+
+our $JSON_DECODER = undef;
+sub get_json_decoder {
+    $JSON_DECODER ||= eval { require JSON::Any; JSON::Any->import; JSON::Any->new };
+    return $JSON_DECODER;
+
 }
