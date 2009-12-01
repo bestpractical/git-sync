@@ -338,8 +338,8 @@ sub start_master {
     my ($host) = @_;
     printf colored("  %-40s ", "dark"), "Starting ssh master connection";
     my $status = `ssh -O check $host 2>&1`;
-    if ( $status =~ /^Master running/) {
-        print colored( "[ Already running ]\n", "dark");
+    if ( $status =~ /^Master running \(pid=(\d+)\)/) {
+        print colored( "[ Already running (PID $1) ]\n", "dark");
         return;
     } elsif ( $status =~ /^No ControlPath/) {
         print colored( "[ Not configured -- see ControlPath in sshd_config(5) ]\n", "yellow" );
@@ -365,8 +365,8 @@ sub start_master {
         exit;
     }
 
-    sleep 1 while (`ssh -O check $host 2>&1` !~ /Master running/);
-    print colored( "[ Done ]\n", "green" );
+    sleep 1 while (`ssh -O check $host 2>&1` !~ /Master running \(pid=(\d+)\)/);
+    print colored( "[ Started (PID $1) ]\n", "green" );
     return $pid;
 }
 
