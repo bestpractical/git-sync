@@ -188,6 +188,7 @@ if (@ARGV) {
 }
 
 my %seen;
+my %masters;
 for my $name (@categories) {
     print colored("Syncing" . (length $name ? " $name" : "")."\n", "bold");
 
@@ -202,6 +203,8 @@ for my $name (@categories) {
     }
     print " "x45,"\n";
 }
+
+stop_masters();
 
 sub sync_all_local {
     my %config = @_;
@@ -300,7 +303,7 @@ sub sync_all_remote {
             unless eval { File::Path::mkpath($config{into}) };
     }
 
-    my $pid = start_master($config{host});
+    start_master($config{host});
 
     my @paths = ref $config{path} ? @{$config{path}} : ($config{path});
     for my $path (@paths) {
@@ -328,10 +331,6 @@ sub sync_all_remote {
             }
         }
     }
-
-    # Shut down master connection
-    `ssh -O exit $config{host} 2>&1`
-        if $pid and kill 0, $pid;
 }
 
 sub start_master {
@@ -367,7 +366,29 @@ sub start_master {
 
     sleep 1 while (`ssh -O check $host 2>&1` !~ /Master running \(pid=(\d+)\)/);
     print colored( "[ Started (PID $1) ]\n", "green" );
-    return $pid;
+    $masters{$host} = $pid;
+}
+
+sub stop_masters {
+    return unless keys %masters;
+
+    print colored("Stopping SSH master connections\n", "dark");
+
+    for my $host (keys %masters) {
+        printf colored("  %-40s ", "dark"), $host;
+        if (kill 0, $masters{$host}) {
+            my $status = `ssh -O exit $host 2>&1`;
+            if ($status =~ /Exit request sent/) {
+                print colored("[ Done ]\n", "green");
+            } else {
+                $status =~ s/\r?\n$//; # chomp doesn't remove the \r
+                print colored("[ $status ]\n", "red");
+            }
+        } else {
+            print colored("[ Already stopped! ]\n", "red");
+        }
+    }
+    print "\n";
 }
 
 sub already {
