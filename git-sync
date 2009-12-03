@@ -414,6 +414,11 @@ sub update {
         return;
     }
 
+    if ( $repo->config_bool( "sync.ignore" )) {
+        print $verbose ? colored("[ sync.ignore set ]\n", "dark") : "\r";
+        return;
+    }
+
     my $gitsvn = -e $repo->repo_path . "/svn/.metadata";
     if ($gitsvn) {
         print colored( "[ svn ] ", "dark blue" );
