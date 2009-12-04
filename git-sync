@@ -425,7 +425,7 @@ sub update {
          # git-svn doesn't work with $repo->command, hate
         `git --git-dir @{[$repo->repo_path]} svn fetch -q` unless $pretend;
     } else {
-        my $ret = eval { $repo->command( [qw/remote update --prune/], STDERR => 0 ); } unless $pretend;
+        my $ret = eval { $repo->command( [qw/fetch --all --prune --quiet/], STDERR => 0 ); } unless $pretend;
     }
     kill $? & 127, $$ if $? & 127; # Propagate the signal it died with, if any
 
