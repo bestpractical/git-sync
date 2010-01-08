@@ -95,6 +95,10 @@ C<hostname:/path>.
             # under this directory
             into = /home/alexmv/example.com
 
+The If the path includes a '*', it is treated as a list of remote
+repository paths.  Otherwise, all subdirectories of the path which are
+git repositories are acted on.
+
 Note that local categories can be overlapped with other types; the
 following configuration clones and updates all of alexmv's github
 repositories, and also updates any other repositories it happens to
@@ -307,10 +311,12 @@ sub sync_all_remote {
 
     my @paths = ref $config{path} ? @{$config{path}} : ($config{path});
     for my $path (@paths) {
-        my @list = `ssh $config{host} ls $path`;
+        $path .= '/*' unless $path =~ /\*/;
+        my @list = `ssh $config{host} ls -d $path`;
         print colored("  Listing returned ".($? >> 8).", skipping!\n", "bold red") and next if $?;
-        for my $reponame (@list) {
-            $reponame =~ s/(\.git)?\n?$//;
+        for my $repopath (@list) {
+            chomp $repopath;
+            my ($reponame) = $repopath =~ m{(?:^|/)([^/]*?)(?:\.git)?$};
             my $into = "$config{into}/$reponame";
 
             printf "  %-40s ", $reponame;
@@ -318,16 +324,16 @@ sub sync_all_remote {
             if (-e $into) {
                 update($into, 1);
             } else {
-                `ssh $config{host} [ -e $path/${reponame}.git/config ]`;
+                `ssh $config{host} [ -e $repopath/config ]`;
                 print $verbose ? colored("[ Not a git repository ]\n", "dark") : "\r" and next
                     if $?;
 
-                my ($ignore) = `ssh $config{host} git config --bool -f $path/${reponame}.git/config sync.ignore`;
+                my ($ignore) = `ssh $config{host} git config --bool -f $repopath/config sync.ignore`;
                 chomp $ignore if defined $ignore;
                 print $verbose ? colored("[ sync.ignore set ]\n", "dark") : "\r" and next
                     if defined $ignore and $ignore eq 'true';
 
-                clone($into => "$config{host}:$path/$reponame", $config{email});
+                clone($into => "$config{host}:$repopath", $config{email});
             }
         }
     }
