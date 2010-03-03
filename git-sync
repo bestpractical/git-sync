@@ -265,9 +265,16 @@ sub sync_all_github {
             if (-e $root) {
                 update($root, 1);
             } else {
-                my $auth = clone($root => "git\@github.com:$acct/$reponame.git" => $config{email});
+                my $auth = 1;
+                if ($config{login}) {
+                    my $data = github("repos/show/$acct/$reponame/collaborators");
+                    $auth = 0 if $data and not grep {$_ eq $config{login}} @{$data->{collaborators}};
+                }
+                if ($auth) {
+                    $auth = clone($root => "git\@github.com:$acct/$reponame.git" => $config{email});
+                    printf "  %-40s ", "...trying again, anonymously" unless $auth;
+                }
                 unless ($auth) {
-                    printf "  %-40s ", "...trying again, anonymously";
                     clone($root => "git://github.com/$acct/$reponame.git" => $config{email});
                 }
             }
