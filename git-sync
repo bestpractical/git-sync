@@ -108,7 +108,7 @@ C<hostname:/path>.
             # under this directory
             into = /home/alexmv/example.com
 
-The If the path includes a '*', it is treated as a list of remote
+If the path includes a '*', it is treated as a list of remote
 repository paths.  Otherwise, all subdirectories of the path which are
 git repositories are acted on.
 
