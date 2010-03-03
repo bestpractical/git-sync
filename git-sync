@@ -49,6 +49,9 @@ authorization token) that will be used to access Github, and (if
 possible) also to determine if cloning via SSH (rather than git://) is
 possible.
 
+It can also be configured to add, and keep up-to-update, all
+repositories in Github's "network" as remotes.
+
 =item Remote
 
 All of the repositories in a specific directory (or set of
@@ -89,7 +92,9 @@ users) are cloned and updated:
             into = /home/alexmv/github
 
 The C<login> and C<token> keys are used to provide github
-authentication, though this is not required.
+authentication, though this is not required.  The C<network> key, if
+set, causes C<git-sync> to set up (and fetch) the github network as
+remotes for each repository, additionally.
 
 The presence of C<host> and C<path> keys configures a remote directory
 to clone from.  Multiple values for C<path> can be given; alternately,
@@ -263,6 +268,12 @@ sub sync_all_github {
             printf "  %-40s ", $reponame;
             next if already($root => 1);
             if (-e $root) {
+                add_github_remotes(
+                    %config,
+                    account => $acct,
+                    repository => $reponame,
+                    fetch => 0,
+                ) if $config{network};
                 update($root, 1);
             } else {
                 my $auth = 1;
@@ -277,28 +288,42 @@ sub sync_all_github {
                 unless ($auth) {
                     clone($root => "git://github.com/$acct/$reponame.git" => $config{email});
                 }
+                add_github_remotes(
+                    %config,
+                    account => $acct,
+                    repository => $reponame,
+                    fetch => 1,
+                ) if $config{network};
             }
-            #    my @clones = get_github_clone_list($acct, $reponame);
-            #add_new_github_remotes(@clones); 
-
         }
     }
 }
 
+sub add_github_remotes {
+    my %config = @_;
 
-sub get_github_clone_list {
-    my $user = shift;
-    my $repo = shift;
-    my @owners;
-    my $decoder = get_json_decoder();
-    my $content = LWP::Simple::get("http://github.com/api/v2/json/repos/show/$user/$repo/network");
-    my $data    = eval { $decoder->jsonToObj($content) };
-    print colored( "  Parsing of GitHub JSON response failed! $@\n", "bold red" ) . "\n$content\n" and next
-        unless defined $data;
-    foreach my $record ( @{ $data->{network} } ) {
-        push @owners, $record->{owner} unless $record->{owner} eq $user;
+    my $data = github("repos/show/$config{account}/$config{repository}/network", $config{login}, $config{token}) or return;
+
+    my %existing;
+    my $repo = Git->repository(Directory => "$config{into}/$config{repository}");
+    $existing{$_}++ for map {chomp; $_} $repo->command("remote", "show");
+
+    my @network = sort grep {$_ ne $config{account} and not $existing{$_}} map {$_->{owner}} @{$data->{network}};
+    return unless @network;
+    printf colored("    %-40s ", "dark"), "Adding github network remotes";
+    for my $remote (grep {not $existing{$_}} @network) {
+        my $uri = "git://github.com/$remote/$config{repository}.git";
+        $uri = "git\@github.com:$config{login}/$config{repository}.git"
+            if $config{login} and $config{login} eq $remote;
+        $repo->command(
+            "remote", "add",
+            $remote => $uri,
+        );
     }
-    return @owners;
+    my $retval = eval { $repo->command( [qw/remote update --prune/], STDERR => 0 ); }
+        if $config{fetch};
+
+    print colored("{ @network }\n", "dark green");
 }
 
 sub sync_all_remote {
