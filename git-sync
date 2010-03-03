@@ -44,6 +44,11 @@ writable clone via the SSH is attempted; if this fails, C<git-sync>
 falls back to the read-only C<git> protocol.  If a clone already
 exists, it is updated as above.
 
+The configuration can provide a login name (and optionally,
+authorization token) that will be used to access Github, and (if
+possible) also to determine if cloning via SSH (rather than git://) is
+possible.
+
 =item Remote
 
 All of the repositories in a specific directory (or set of
@@ -82,6 +87,9 @@ users) are cloned and updated:
             # All of alexmv's and bestpractical's repositories will be
             # cloned and updated under this directory
             into = /home/alexmv/github
+
+The C<login> and C<token> keys are used to provide github
+authentication, though this is not required.
 
 The presence of C<host> and C<path> keys configures a remote directory
 to clone from.  Multiple values for C<path> can be given; alternately,
@@ -153,7 +161,7 @@ use warnings;
 use Term::ANSIColor qw//;
 use Getopt::Long;
 use Pod::Usage;
-use LWP::Simple qw();
+use LWP::UserAgent qw();
 use File::Path qw();
 
 our $VERSION = 1.0;
@@ -246,15 +254,9 @@ sub sync_all_github {
 
     my @accounts = ref $config{github} ? @{$config{github}} : ($config{github});
     for my $acct (@accounts) {
-        my $content = LWP::Simple::get("http://github.com/api/v1/json/$acct");
-        print colored("  GET of http://github.com/api/v1/json/$acct failed!\n", "bold red") and next
-            unless defined $content;
+        my $data = github("repos/show/$acct", $config{login}, $config{token}) or next;
 
-        my $data = eval {$decoder->jsonToObj($content)};
-        print colored("  Parsing of GitHub JSON response failed! $@\n", "bold red")."\n$content\n" and next
-            unless defined $data;
-
-        for my $repo (@{$data->{user}{repositories} || []}) {
+        for my $repo (@{$data->{repositories} || []}) {
             my $reponame = $repo->{name};
             my $root = "$config{into}/$reponame";
 
@@ -532,5 +534,31 @@ our $JSON_DECODER = undef;
 sub get_json_decoder {
     $JSON_DECODER ||= eval { require JSON::Any; JSON::Any->import; JSON::Any->new };
     return $JSON_DECODER;
+}
 
+our $UA = undef;
+sub github {
+    my ($url, $login, $token) = @_;
+    $UA ||= LWP::UserAgent->new(
+        agent => "git-sync/$VERSION",
+        env_proxy => 1,
+        keep_alive => 1,
+    );
+
+    $url = "https://github.com/api/v2/json/$url?";
+    $url .= "login=$login&" if $login;
+    $url .= "token=$token" if $token;
+
+    my $response = $UA->get($url);
+    print colored("  GET of $url failed!\n", "bold red")
+        . colored("  ".$response->status_line . "\n", "bold red") and return
+        unless $response->is_success;
+
+    my $decoder = get_json_decoder();
+    my $data = eval {$decoder->jsonToObj($response->content)};
+    print colored("  Parsing of GitHub JSON response failed! $@\n", "bold red")
+        ."\n".$response->content."\n" and return
+        unless defined $data;
+
+    return $data;
 }
