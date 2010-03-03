@@ -156,6 +156,8 @@ use Pod::Usage;
 use LWP::Simple qw();
 use File::Path qw();
 
+our $VERSION = 1.0;
+
 sub colored { (-t STDOUT) ? Term::ANSIColor::colored(@_) : $_[0] }
 
 $SIG{INT} = sub {
