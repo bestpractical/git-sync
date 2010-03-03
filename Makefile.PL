@@ -1,8 +1,6 @@
 use inc::Module::Install;
 name     'Git-Sync';
-#all_from 'git-sync';
-#author   q{};
-#license  '';
+all_from 'git-sync';
 requires( qw(
         Git 0
         Term::ANSIColor 0

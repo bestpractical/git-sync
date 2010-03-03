@@ -158,8 +158,18 @@ Other parameters passed on the command line are taken to be categories
 to be synchronized; if no other arguments are given, synchronzies all
 categories.
 
+=head1 AUTHOR
+
+Alex Vandiver C<< <alexmv@bestpractical.com> >>
+
+=head1 COPYRIGHT
+
+This program is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
 =cut
 
+use 5.008;
 use Git;
 use strict;
 use warnings;
