@@ -6,7 +6,7 @@ git-sync - synchronize multiple git repositories
 
 =head1 SYNOPSIS
 
-    git-sync [--verbose] [--dry-run] [--log] [category]
+    git-sync [--verbose|--quiet] [--dry-run] [--log] [category]
 
 =head1 DESCRIPTION
 
@@ -135,6 +135,10 @@ value.
 
 Be more verbose about which repositories are skipped, and why.
 
+=item C<--quiet> or C<--terse> or C<-q>
+
+Skip the display of non-dirty, up-to-date repositories.
+
 =item C<--pretend> or C<--dry-run> or C<-n>
 
 Remote repositories are not fetched from; the list of repositories
@@ -189,14 +193,21 @@ $SIG{INT} = sub {
 };
 $SIG{USR1} = 'IGNORE';
 
-my ($verbose, $pretend, $log, $help);
+my ($verbose, $quiet, $pretend, $log, $help);
 GetOptions(
-    'verbose|v' => \$verbose,
+    'verbose|v!' => \$verbose,
+    'quiet|terse|q!' => \$quiet,
     'pretend|dry-run|n' => \$pretend,
     'log|l' => \$log,
     'help|h' => \$help,
 ) or pod2usage( -verbose => 1 );
+
+pod2usage( -verbose => 0, -msg => "--verbose and --quiet are mutually exclusive")
+    if $verbose and $quiet;
+
 pod2usage( -verbose => 2 ) if $help;
+
+$verbose = -$quiet if defined $quiet;
 
 my %sync;
 for (split /\0/, `git config -z --get-regexp ^sync\\\\.`) {
@@ -205,6 +216,7 @@ for (split /\0/, `git config -z --get-regexp ^sync\\\\.`) {
         ? ref $sync{$1}{$2} ? [@{$sync{$1}{$2}}, $3] : [$sync{$1}{$2}, $3]
         : $3;
 }
+$verbose ||= 0;
 
 my @categories;
 if (@ARGV) {
@@ -371,12 +383,12 @@ sub sync_all_remote {
                 update($into, 1);
             } else {
                 `ssh $config{host} [ -e $repopath/config ]`;
-                print $verbose ? colored("[ Not a git repository ]\n", "dark") : "\r" and next
+                print $verbose > 0 ? colored("[ Not a git repository ]\n", "dark") : "\r" and next
                     if $?;
 
                 my ($ignore) = `ssh $config{host} git config --bool -f $repopath/config sync.ignore`;
                 chomp $ignore if defined $ignore;
-                print $verbose ? colored("[ sync.ignore set ]\n", "dark") : "\r" and next
+                print $verbose > 0 ? colored("[ sync.ignore set ]\n", "dark") : "\r" and next
                     if defined $ignore and $ignore eq 'true';
 
                 clone($into => "$config{host}:$repopath", $config{email});
@@ -449,7 +461,7 @@ sub already {
         print colored( "[ Already synchronized! ]\n", "red");
         return 1;
     } elsif (exists $seen{$path}) {
-        print $verbose ? colored("[ Already synchronized ]\n", "dark") : "\r";
+        print $verbose > 0 ? colored("[ Already synchronized ]\n", "dark") : "\r";
         return 1;
     }
     $seen{$path} = $force;
@@ -467,7 +479,7 @@ sub update {
     }
 
     if ( $repo->config_bool( "sync.ignore" )) {
-        print $verbose ? colored("[ sync.ignore set ]\n", "dark") : "\r";
+        print $verbose > 0 ? colored("[ sync.ignore set ]\n", "dark") : "\r";
         return;
     }
 
@@ -521,6 +533,7 @@ sub update {
         print $pull;
     } else {
         my $logs = "";
+        my $dirty = ($status !~ /^nothing (?:added )?to commit/m) ? 1 : 0;
         if ($status =~ /^# Your branch and '.*?' have diverged.*?(\d+) and (\d+) different commit/sm) {
             print colored( "[ Diverged by $1 and $2 commits ($branch) ]", "bold cyan" );
         } elsif ($status =~ /^# Your branch is ahead of '(.*?)' by (\d+) commit/m) {
@@ -531,12 +544,13 @@ sub update {
             my ($tracking, $behind) = ($1, $2);
             print colored( "[ Behind by $behind ($branch) ]", "bold magenta");
             $logs = logs($repo, $branch => $tracking);
+        } elsif ($verbose < 0 and not $dirty) {
+            print "\r", " " x 50, "\r";
+            return;
         } else {
             print colored( "[ Up-to-date ($branch) ]", "green");
         }
-        if ($status !~ /^nothing (?:added )?to commit/m) {
-            print colored( " [ Dirty ]", "yellow");
-        }
+        print colored( " [ Dirty ]", "yellow") if $dirty;
         print "\n$logs";
     }
 
@@ -552,7 +566,7 @@ sub clone {
     my $ret = eval { Git::command( [clone => "-q" => $from => $into], STDERR => 0 ) };
     if ($@) {
         print colored( "[ Clone failed! ]\n", "bold red");
-        print colored( "Error: $@\n", "red") if ($verbose);
+        print colored( "Error: $@\n", "red") if $verbose > 0;
         return undef;
     }
     kill $? & 127, $$ if $? & 127; # Propagate the signal it died with, if any
