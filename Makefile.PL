@@ -9,3 +9,5 @@ requires( qw(
         LWP::Simple 0
         File::Path 0));
 auto_install();
+
+&WriteAll();
