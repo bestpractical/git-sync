@@ -233,6 +233,8 @@ if (@ARGV) {
     }
 } else {
     @categories = sort {exists $sync{$a}{local} <=> exists $sync{$b}{local} or $a cmp $b} keys %sync;
+    die qq{No sync targets configured!  Edit your ~/.gitconfig to add one.\n}
+        unless @categories;
 }
 
 my %seen;
