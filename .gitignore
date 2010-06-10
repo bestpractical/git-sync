@@ -1,2 +1,7 @@
+META.yml
+Makefile
+Makefile.old
+blib
 inc
 nytprof
+pm_to_blib
