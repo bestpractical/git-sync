@@ -509,10 +509,28 @@ sub update {
 
     print colored("[ Bare repository ]\n", "green") and return if $repo->config_bool('core.bare');
 
+
+    # We want to set up the upstream to be the svn repo temporarily
+    if ($gitsvn) {
+        my $branch = $repo->command("symbolic-ref", "HEAD"); chomp $branch;
+        if ( $branch =~ s{refs/heads/(.*)}{$1} and not $repo->config( "branch.$branch.merge" ) ) {
+            $gitsvn = -$gitsvn;
+            $repo->command("config", "branch.$branch.remote", ".");
+            $repo->command("config", "branch.$branch.merge",  "refs/remotes/git-svn"); # XXX Assumes standard git-svn layout
+        }
+    }
+
     my $status = "";
     my ($fh, $ctx) = $repo->command_output_pipe('status');
     $status .= $_ while (<$fh>);
     eval {$repo->command_close_pipe($fh, $ctx);};
+
+    # Take the config back out
+    if ($gitsvn and $gitsvn < 0) {
+        my $branch = $repo->command("symbolic-ref", "HEAD"); chomp $branch;
+        $branch =~ s{refs/heads/(.*)}{$1};
+        $repo->command("config", "--remove-section", "branch.$branch");
+    }
 
     # Rebase if there are no changes, it is on a tracking
     # branch, and the result would be a fast-forward
@@ -531,7 +549,7 @@ sub update {
 
         print logs($repo, $branch => $tracking);
 
-        my $pull = $pretend ? "" : `git pull --stat`;
+        my $pull = $pretend ? "" : $gitsvn ? `git merge --stat refs/remotes/git-svn` : `git pull --stat`;
         kill $? & 127, $$ if $? & 127; # Propagate the signal it died with, if any
 
         # This line will always be present, and is content-free
