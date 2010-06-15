@@ -156,6 +156,12 @@ diverged), show the output of C<git log --oneline --reverse> for the
 list of commits that differ.  This option's default is controlled by
 the C<sync.log> key in F<.gitconfig>
 
+=item C<--stash> or C<-s>
+
+Display how many entries there are in the stash, if there are any;
+defaults to off.  This option's default is controlled by the
+C<sync.stash> key in F<.gitconfig>
+
 =item C<--help> or C<-h>
 
 Shows this documentation.
@@ -197,12 +203,13 @@ $SIG{INT} = sub {
 };
 $SIG{USR1} = 'IGNORE';
 
-my ($verbose, $quiet, $pretend, $log, $help);
+my ($verbose, $quiet, $pretend, $log, $stash, $help);
 GetOptions(
     'verbose|v!' => \$verbose,
     'quiet|terse|q!' => \$quiet,
     'pretend|dry-run|n' => \$pretend,
     'log|l!' => \$log,
+    'stash|s!' => \$stash,
     'help|h' => \$help,
 ) or pod2usage( -verbose => 1 );
 
@@ -218,6 +225,7 @@ for (split /\0/, `git config -z --get-regexp ^sync\\\\.`) {
     $verbose =  1 if not defined $verbose and $_ eq "sync.verbose";
     $verbose = -1 if not defined $verbose and $_ eq "sync.quiet";
     $log     =  1 if not defined $log     and $_ eq "sync.log";
+    $stash   =  1 if not defined $stash   and $_ eq "sync.stash";
     next unless /^sync\.(.*?)\.([^\n]*)(?:\n(.*))?/;
     $sync{$1}{$2} = exists $sync{$1}{$2}
         ? ref $sync{$1}{$2} ? [@{$sync{$1}{$2}}, $3] : [$sync{$1}{$2}, $3]
@@ -532,6 +540,9 @@ sub update {
         $repo->command("config", "--remove-section", "branch.$branch");
     }
 
+    # Look for any stash entries
+    my @stash = $stash ? $repo->command('stash', 'list') : ();
+
     # Rebase if there are no changes, it is on a tracking
     # branch, and the result would be a fast-forward
     my ($branch) = $status =~ /^# On branch (.*)/m;
@@ -543,9 +554,11 @@ sub update {
         # thus can't be run via $repo->command( "pull" )
         chdir($root);
         print colored( $pretend ?
-                           "[ Would pull $behind commits ($branch) ]\n" :
-                           "[ Pulled $behind commits ($branch) ]\n",
+                           "[ Would pull $behind commits ($branch) ]" :
+                           "[ Pulled $behind commits ($branch) ]",
                        "bold green" );
+        print colored( " [ Stash: @{[@stash+0]} ]", "bold yellow") if @stash;
+        print "\n";
 
         print logs($repo, $branch => $tracking);
 
@@ -571,12 +584,13 @@ sub update {
             my ($tracking, $behind) = ($1, $2);
             print colored( "[ Behind by $behind ($branch) ]", "bold magenta");
             $logs = logs($repo, $branch => $tracking);
-        } elsif ($verbose < 0 and not $dirty) {
+        } elsif ($verbose < 0 and not $dirty and not @stash) {
             print "\r", " " x 50, "\r";
             return;
         } else {
             print colored( "[ Up-to-date ($branch) ]", "green");
         }
+        print colored( " [ Stash: @{[@stash+0]} ]", "bold yellow") if @stash;
         print colored( " [ Dirty ]", "yellow") if $dirty;
         print "\n$logs";
     }
