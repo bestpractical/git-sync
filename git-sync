@@ -162,6 +162,13 @@ Display how many entries there are in the stash, if there are any;
 defaults to off.  This option's default is controlled by the
 C<sync.stash> key in F<.gitconfig>
 
+=item C<--gc> or <-G>
+
+Run C<git gc> on each repository, repacking it for better disk space
+efficiency, and faster operation; as this is a possibly time-intensive
+operation, this defaults to off.  This option's default is controlled
+by the C<sync.gc> key in F<.gitconfig>
+
 =item C<--help> or C<-h>
 
 Shows this documentation.
@@ -203,13 +210,14 @@ $SIG{INT} = sub {
 };
 $SIG{USR1} = 'IGNORE';
 
-my ($verbose, $quiet, $pretend, $log, $stash, $help);
+my ($verbose, $quiet, $pretend, $log, $stash, $gc, $help);
 GetOptions(
     'verbose|v!' => \$verbose,
     'quiet|terse|q!' => \$quiet,
     'pretend|dry-run|n' => \$pretend,
     'log|l!' => \$log,
     'stash|s!' => \$stash,
+    'gc|G!' => \$gc,
     'help|h' => \$help,
 ) or pod2usage( -verbose => 1 );
 
@@ -226,6 +234,7 @@ for (split /\0/, `git config -z --get-regexp ^sync\\\\.`) {
     $verbose = -1 if not defined $verbose and $_ eq "sync.quiet";
     $log     =  1 if not defined $log     and $_ eq "sync.log";
     $stash   =  1 if not defined $stash   and $_ eq "sync.stash";
+    $gc      =  1 if not defined $gc      and $_ eq "sync.gc";
     next unless /^sync\.(.*?)\.([^\n]*)(?:\n(.*))?/;
     $sync{$1}{$2} = exists $sync{$1}{$2}
         ? ref $sync{$1}{$2} ? [@{$sync{$1}{$2}}, $3] : [$sync{$1}{$2}, $3]
@@ -571,7 +580,12 @@ sub update {
         $pull =~ s/^( .*?)(\+*)(-*)$/$1.colored($2,"green").colored($3,"red")/gme;
         $pull =~ s/^/    /gm if length $pull;
         print $pull;
+
+        # GC after the pull, so we get the new objects
+        $repo->command("gc", "--quiet") if $gc and not $pretend;
     } else {
+        # If we don't pull, GC now, before we possibly bail
+        $repo->command("gc", "--quiet") if $gc and not $pretend;
         my $logs = "";
         my $dirty = ($status !~ /^nothing (?:added )?to commit/m) ? 1 : 0;
         if ($status =~ /^# Your branch and '.*?' have diverged.*?(\d+) and (\d+) different commit/sm) {
