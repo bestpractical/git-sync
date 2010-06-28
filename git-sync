@@ -6,7 +6,7 @@ git-sync - synchronize multiple git repositories
 
 =head1 SYNOPSIS
 
-    git-sync [--verbose|--quiet] [--dry-run] [--log] [category]
+    git-sync [--verbose|--quiet] [--dry-run] [category]
 
 =head1 DESCRIPTION
 
