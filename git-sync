@@ -253,6 +253,7 @@ if (@ARGV) {
         push @categories, $name;
     }
 } else {
+    $_->{local} = 1 for grep {not $_->{host} and not $_->{github}} values %sync;
     @categories = sort {exists $sync{$a}{local} <=> exists $sync{$b}{local} or $a cmp $b} keys %sync;
     die qq{No sync targets configured!  Edit your ~/.gitconfig to add one.\n}
         unless @categories;
