@@ -127,6 +127,10 @@ Remote and Github configurations also support the C<email> key; if set,
 newly-cloned repositories will have C<user.email> set to the given
 value.
 
+Remote configurations automatically attempt to set up an SSH master
+connection.  C<local> configurations can start one or more SSH master
+connections by explicitly providing C<sshmaster> configuration lines.
+
 =head1 OPTIONS
 
 =over
@@ -275,6 +279,8 @@ stop_masters();
 
 sub sync_all_local {
     my %config = @_;
+    my @sshmaster = ref $config{sshmaster} ? @{$config{sshmaster}} : $config{sshmaster};
+    start_master($_) for @sshmaster;
     foreach my $into ( ref $config{into} ? @{$config{into}} : $config{into} ) {
         unless (-d $into) {
             print colored("  Directory '$into' does not exist!\n", "bold red");
@@ -425,10 +431,10 @@ sub sync_all_remote {
 
 sub start_master {
     my ($host) = @_;
-    printf colored("  %-40s ", "dark"), "Starting ssh master connection";
+    printf colored("  %-40s ", "dark"), $host;
     my $status = `ssh -O check $host 2>&1`;
     if ( $status =~ /^Master running \(pid=(\d+)\)/) {
-        print colored( "[ Already running (PID $1) ]\n", "dark");
+        print colored( "[ Already running SSH master (PID $1) ]\n", "dark");
         return;
     } elsif ( $status =~ /^No ControlPath/) {
         print colored( "[ Not configured -- see ControlPath in ssh_config(5) ]\n", "yellow" );
@@ -455,7 +461,7 @@ sub start_master {
     }
 
     sleep 1 while (`ssh -O check $host 2>&1` !~ /Master running \(pid=(\d+)\)/);
-    print colored( "[ Started (PID $1) ]\n", "green" );
+    print colored( "[ SSH master started (PID $1) ]\n", "green" );
     $masters{$host} = $pid;
 }
 
