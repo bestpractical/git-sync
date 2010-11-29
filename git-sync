@@ -15,11 +15,11 @@ with their upstream repositories, and to clone new repositories as
 they are added to the upstream location.
 
 The updating is done in a manner which preserves your local state, and
-I<should> not cause conflicts.  A C<git fetch --all --prune> is always
-done; if the user has no uncommitted changes, and the merge would be a
-fast-forward, the current branch is C<git pull>ed, and the diffstat is
-printed.  Otherwise, the state of the repository is shown in a concise
-manner.
+I<should> not cause conflicts.  A C<git fetch --all --tags --prune> is
+always done; if the user has no uncommitted changes, and the merge
+would be a fast-forward, the current branch is C<git pull>ed, and the
+diffstat is printed.  Otherwise, the state of the repository is shown
+in a concise manner.
 
 C<git-sync> also understands C<git-svn> clones, and updates them using
 the same rules, but using C<git svn fetch> and C<git svn rebase>
@@ -375,7 +375,7 @@ sub add_github_remotes {
             $remote => $uri,
         );
     }
-    my $retval = eval { $repo->command( [qw/fetch --all --prune/], STDERR => 0 ); }
+    my $retval = eval { $repo->command( [qw/fetch --all --tags --prune/], STDERR => 0 ); }
         if $config{fetch};
 
     print colored("{ @network }\n", "dark green");
@@ -522,7 +522,7 @@ sub update {
          # git-svn doesn't work with $repo->command, hate
         `git --git-dir @{[$repo->repo_path]} svn fetch -q` unless $pretend;
     } else {
-        my $ret = eval { $repo->command( [qw/fetch --all --prune/], STDERR => 0 ); } unless $pretend;
+        my $ret = eval { $repo->command( [qw/fetch --all --tags --prune/], STDERR => 0 ); } unless $pretend;
     }
     kill $? & 127, $$ if $? & 127; # Propagate the signal it died with, if any
 
