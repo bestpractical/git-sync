@@ -314,9 +314,9 @@ sub sync_all_github {
 
     my @accounts = ref $config{github} ? @{$config{github}} : ($config{github});
     for my $acct (@accounts) {
-        my $data = github("repos/show/$acct", $config{login}, $config{token}) or next;
+        my $data = github("users/$acct/repos", $config{login}, $config{token}) or next;
 
-        for my $repo (@{$data->{repositories} || []}) {
+        for my $repo (@{$data || []}) {
             my $reponame = $repo->{name};
             my $root = "$config{into}/$reponame";
 
@@ -333,8 +333,8 @@ sub sync_all_github {
             } else {
                 my $auth = 1;
                 if ($config{login}) {
-                    my $data = github("repos/show/$acct/$reponame/collaborators");
-                    $auth = 0 if $data and not grep {$_ eq $config{login}} @{$data->{collaborators}};
+                    my $data = github("repos/$acct/$reponame/collaborators");
+                    $auth = 0 if $data and not grep {$_->{login} eq $config{login}} @{$data};
                 }
                 if ($auth) {
                     $auth = clone($root => "git\@github.com:$acct/$reponame.git" => $config{email});
@@ -357,22 +357,22 @@ sub sync_all_github {
 sub add_github_remotes {
     my %config = @_;
 
-    my $data = github("repos/show/$config{account}/$config{repository}/network", $config{login}, $config{token}) or return;
+    my $data = github("http://github.com/$config{account}/$config{repository}/network_meta") or return;
 
     my %existing;
     my $repo = Git->repository(Directory => "$config{into}/$config{repository}");
     $existing{$_}++ for map {chomp; $_} $repo->command("remote", "show");
 
-    my @network = sort grep {$_ ne $config{account} and not $existing{$_}} map {$_->{owner}} @{$data->{network}};
+    my @network = sort grep {$_ ne $config{account} and not $existing{$_}} map {$_->{name}} @{$data->{users}};
     return unless @network;
     printf colored("    %-40s ", "dark"), "Adding github network remotes";
-    for my $remote (grep {not $existing{$_}} @network) {
-        my $uri = "git://github.com/$remote/$config{repository}.git";
-        $uri = "git\@github.com:$config{login}/$config{repository}.git"
-            if $config{login} and $config{login} eq $remote;
+    for my $remote (@{$data->{users}}) {
+        next if $remote->{name} eq $config{account};
+        next if $existing{$remote->{name}};
         $repo->command(
             "remote", "add",
-            $remote => $uri,
+            $remote->{name},
+            "git://github.com/" . $remote->{name} . "/" . $remote->{repo} . ".git",
         );
     }
     my $retval = eval { $repo->command( [qw/fetch --all --prune/], STDERR => 0 )
@@ -665,9 +665,8 @@ sub github {
         keep_alive => 1,
     );
 
-    $url = "https://github.com/api/v2/json/$url?";
-    $url .= "login=$login&" if $login;
-    $url .= "token=$token" if $token;
+    $url = ($url =~ m|^https?://| ? $url : "https://api.github.com/$url?");
+    $url .= "access_token=$token" if $token;
 
     my $response = $UA->get($url);
     print colored("  GET of $url failed!\n", "bold red")
