@@ -281,7 +281,9 @@ stop_masters();
 sub sync_all_local {
     my %config = @_;
     my @sshmaster = ref $config{sshmaster} ? @{$config{sshmaster}} : $config{sshmaster};
-    start_master($_) for grep {defined} @sshmaster;
+    unless ($pretend) {
+        start_master($_) for grep {defined} @sshmaster;
+    }
     foreach my $into ( ref $config{into} ? @{$config{into}} : $config{into} ) {
         unless (-d $into) {
             print colored("  Directory '$into' does not exist!\n", "bold red");
