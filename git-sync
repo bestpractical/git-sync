@@ -565,10 +565,10 @@ sub update {
 
     # Rebase if there are no changes, it is on a tracking
     # branch, and the result would be a fast-forward
-    my ($branch) = $status =~ /^# On branch (.*)/m;
+    my ($branch) = $status =~ /^(?:# )?On branch (.*)/m;
     $branch ||= 'Not currently on any branch';
     if ($status =~ /^nothing (?:added )?to commit/m
-            and $status =~ /^# Your branch is behind '(.*?)' by (\d+) commits?, and can be fast-forwarded/m) {
+            and $status =~ /^(?:# )?Your branch is behind '(.*?)' by (\d+) commits?, and can be fast-forwarded/m) {
         my ($tracking, $behind) = ($1, $2);
         # git-pull is a shell script, unfortunately, and
         # thus can't be run via $repo->command( "pull" )
@@ -599,13 +599,13 @@ sub update {
         $repo->command("gc", "--quiet") if $gc and not $pretend;
         my $logs = "";
         my $dirty = ($status !~ /^nothing (?:added )?to commit/m) ? 1 : 0;
-        if ($status =~ /^# Your branch and '.*?' have diverged.*?(\d+) and (\d+) different commit/sm) {
+        if ($status =~ /^(?:# )?Your branch and '.*?' have diverged.*?(\d+) and (\d+) different commit/sm) {
             print colored( "[ Diverged by $1 and $2 commits ($branch) ]", "bold cyan" );
-        } elsif ($status =~ /^# Your branch is ahead of '(.*?)' by (\d+) commit/m) {
+        } elsif ($status =~ /^(?:# )?Your branch is ahead of '(.*?)' by (\d+) commit/m) {
             my ($tracking, $ahead) = ($1, $2);
             print colored( "[ Ahead by $ahead ($branch) ]", "bold blue");
             $logs = logs($repo, $tracking => $branch);
-        } elsif ($status =~ /^# Your branch is behind '(.*?)' by (\d+) commit/m) {
+        } elsif ($status =~ /^(?:# )Your branch is behind '(.*?)' by (\d+) commit/m) {
             my ($tracking, $behind) = ($1, $2);
             print colored( "[ Behind by $behind ($branch) ]", "bold magenta");
             $logs = logs($repo, $branch => $tracking);
