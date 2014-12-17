@@ -1,0 +1,191 @@
+=head1 NAME
+
+git-sync - synchronize multiple git repositories
+
+=head1 SYNOPSIS
+
+    git-sync [--verbose|--quiet] [--dry-run] [category]
+
+=head1 DESCRIPTION
+
+C<git-sync> is a tool to keep multiple git repositories up-to-date
+with their upstream repositories, and to clone new repositories as
+they are added to the upstream location.
+
+The updating is done in a manner which preserves your local state, and
+I<should> not cause conflicts.  A C<git fetch --all --prune> and C<git
+fetch --all --tags> is always done; if the user has no uncommitted
+changes, and the merge would be a fast-forward, the current branch is
+C<git pull>ed, and the diffstat is printed.  Otherwise, the state of the
+repository is shown in a concise manner.
+
+C<git-sync> also understands C<git-svn> clones, and updates them using
+the same rules, but using C<git svn fetch> and C<git svn rebase>
+instead of C<git fetch> and C<git pull>.
+
+There are three configuration modes:
+
+=over
+
+=item Local
+
+All of the repositories in a local directory (or set of directories)
+are updated as above.  If any of these directories overlap with
+L</Github> or L</Remote> directories, the repositories are only
+updated once.
+
+=item Github
+
+All of a specific user's repositories (or set of users' repositories)
+from Github are cloned into a specified directory.  By default, a
+writable clone via the SSH is attempted; if this fails, C<git-sync>
+falls back to the read-only C<git> protocol.  If a clone already
+exists, it is updated as above.
+
+The configuration can provide a login name (and optionally,
+authorization token) that will be used to access Github, and (if
+possible) also to determine if cloning via SSH (rather than git://) is
+possible.
+
+It can also be configured to add, and keep up-to-update, all
+repositories in Github's "network" as remotes.
+
+=item Remote
+
+All of the repositories in a specific directory (or set of
+directories) on a remote (SSH) server are cloned into a specified
+directory.  If a clone already exists, it is updated as above.
+
+C<git-sync> attempts to make use of SSH master connections to speed up
+clone and update attempts; see C<ControlPath> and C<ControlMaster> in
+L<ssh_config>.  A common configuration might be:
+
+    Host githost.example.com
+    ControlMaster auto
+    ControlPath /home/alexmv/.ssh/master-%r@%h:%p
+
+=back
+
+=head1 CONFIGURATION
+
+Configuration is done through C<git config> files (F<~/.gitconfig> and
+the like).  C<sync.I<category>> sections define common synchronization
+categories.  The C<into> key is required; it specifies the local path
+where repositories will be found or placed.
+
+    [sync "a-local-dir"]
+            # All git repositories directly underneath this one will
+            # be updated
+            into = /home/alexmv/hacking
+
+If a C<github> key is provided, all repositories of that user (or
+users) are cloned and updated:
+
+    [sync "a-github-account"]
+            # The "github" key makes this category github-based
+            github = alexmv
+            github = bestpractical
+            # All of alexmv's and bestpractical's repositories will be
+            # cloned and updated under this directory
+            into = /home/alexmv/github
+
+The C<login> and C<token> keys are used to provide github
+authentication, though this is not required.  The C<network> key, if
+set, causes C<git-sync> to set up (and fetch) the github network as
+remotes for each repository, additionally.
+
+The presence of C<host> and C<path> keys configures a remote directory
+to clone from.  Multiple values for C<path> can be given; alternately,
+if only one path is needed, C<host> can be specified as
+C<hostname:/path>.
+
+    [sync "a-remote-dir"]
+            # The "host" key makes this category remote-server based
+            host = example.com:/git
+            # All repositories under /git will be cloned and updated
+            # under this directory
+            into = /home/alexmv/example.com
+
+If the path includes a '*', it is treated as a list of remote
+repository paths.  Otherwise, all subdirectories of the path which are
+git repositories are acted on.
+
+Note that local categories can be overlapped with other types; the
+following configuration clones and updates all of alexmv's github
+repositories, and also updates any other repositories it happens to
+find in C</home/alexmv/github>:
+
+    [sync "local"]
+            into = /home/alexmv/github
+    [sync "github"]
+            github = alexmv
+            into = /home/alexmv/github
+
+Remote and Github configurations also support the C<email> key; if set,
+newly-cloned repositories will have C<user.email> set to the given
+value.
+
+Remote configurations automatically attempt to set up an SSH master
+connection.  C<local> configurations can start one or more SSH master
+connections by explicitly providing C<sshmaster> configuration lines.
+
+=head1 OPTIONS
+
+=over
+
+=item C<--verbose> or C<-v>
+
+Be more verbose about which repositories are skipped, and why.  This
+option's default is controlled by the C<sync.verbose> key in
+F<.gitconfig>
+
+=item C<--quiet> or C<--terse> or C<-q>
+
+Skip the display of non-dirty, up-to-date repositories.  This option's
+default is controlled bt the C<sync.quiet> key in F<.gitconfig>
+
+=item C<--pretend> or C<--dry-run> or C<-n>
+
+Remote repositories are not fetched from; the list of repositories
+that would be synchronized is listed, and their state.  Note that
+network access is still needed to obtain a list of repositories for
+L</Github> and L</Remote> directories.
+
+=item C<--log> or C<-l>
+
+When a repository is ahead or behind its tracking remote (but not
+diverged), show the output of C<git log --oneline --reverse> for the
+list of commits that differ.  This option's default is controlled by
+the C<sync.log> key in F<.gitconfig>
+
+=item C<--stash> or C<-s>
+
+Display how many entries there are in the stash, if there are any;
+defaults to off.  This option's default is controlled by the
+C<sync.stash> key in F<.gitconfig>
+
+=item C<--gc> or <-G>
+
+Run C<git gc> on each repository, repacking it for better disk space
+efficiency, and faster operation; as this is a possibly time-intensive
+operation, this defaults to off.  This option's default is controlled
+by the C<sync.gc> key in F<.gitconfig>
+
+=item C<--help> or C<-h>
+
+Shows this documentation.
+
+=back
+
+Other parameters passed on the command line are taken to be categories
+to be synchronized; if no other arguments are given, synchronzies all
+categories.
+
+=head1 AUTHOR
+
+Alex Vandiver C<< <alexmv@bestpractical.com> >>
+
+=head1 COPYRIGHT
+
+This program is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
