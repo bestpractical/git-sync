@@ -25,7 +25,7 @@ C<git-sync> also understands C<git-svn> clones, and updates them using
 the same rules, but using C<git svn fetch> and C<git svn rebase>
 instead of C<git fetch> and C<git pull>.
 
-There are three configuration modes:
+There are four configuration modes:
 
 =over
 
@@ -51,6 +51,15 @@ possible.
 
 It can also be configured to add, and keep up-to-update, all
 repositories in Github's "network" as remotes.
+
+=item Gitolite
+
+Repositories that the user can read from a Gitolite server are cloned.
+If a clone already exists, it is updated as above. The set of repositories
+can be limited to those matching a path glob or under a subdirectory.
+
+The configuration must provide the hostname of the Gitolite server.
+It may optionally specify the username as well (default "git").
 
 =item Remote
 
@@ -96,6 +105,19 @@ authentication, though this is not required.  The C<network> key, if
 set, causes C<git-sync> to set up (and fetch) the github network as
 remotes for each repository, additionally.
 
+If a C<gitoliteHost> key is provided, all repositories available from
+that server are cloned and updated:
+
+    [sync "a-gitolite-server"]
+            gitoliteHost = example.com
+            # If not specified, gitoliteUser defaults to "git"
+            gitoliteUser = gitolite
+
+Gitolite sections may include any number of C<path> keys to limit
+which repositories are cloned.  Each path that includes a '*' or '?'
+is a glob to match repository names.  Otherwise, all repositories
+organized in a directory under C<path> are acted on.
+
 The presence of C<host> and C<path> keys configures a remote directory
 to clone from.  Multiple values for C<path> can be given; alternately,
 if only one path is needed, C<host> can be specified as
@@ -123,9 +145,9 @@ find in C</home/alexmv/github>:
             github = alexmv
             into = /home/alexmv/github
 
-Remote and Github configurations also support the C<email> key; if set,
-newly-cloned repositories will have C<user.email> set to the given
-value.
+Remote, Github, and Gitolite configurations also support the C<email>
+key; if set, newly-cloned repositories will have C<user.email> set to
+the given value.
 
 Remote configurations automatically attempt to set up an SSH master
 connection.  C<local> configurations can start one or more SSH master
@@ -151,7 +173,7 @@ default is controlled bt the C<sync.quiet> key in F<.gitconfig>
 Remote repositories are not fetched from; the list of repositories
 that would be synchronized is listed, and their state.  Note that
 network access is still needed to obtain a list of repositories for
-L</Github> and L</Remote> directories.
+L</Github>, L</Gitolite>, and L</Remote> directories.
 
 =item C<--log> or C<-l>
 
@@ -253,7 +275,7 @@ if (@ARGV) {
         push @categories, $name;
     }
 } else {
-    $_->{local} = 1 for grep {not $_->{host} and not $_->{github}} values %sync;
+    $_->{local} = 1 for grep {not $_->{host} and not $_->{github} and not $_->{gitolitehost}} values %sync;
     @categories = sort {exists $sync{$a}{local} <=> exists $sync{$b}{local} or $a cmp $b} keys %sync;
     die qq{No sync targets configured!  Edit your ~/.gitconfig to add one.\n}
         unless @categories;
@@ -266,6 +288,8 @@ for my $name (@categories) {
 
     if (not $sync{$name}{into}) {
         print colored("  No 'into' set, skipping!\n", "red");
+    } elsif (exists $sync{$name}{gitolitehost}) {
+        sync_all_gitolite(%{$sync{$name}});
     } elsif (exists $sync{$name}{host}) {
         sync_all_remote(%{$sync{$name}});
     } elsif (exists $sync{$name}{github}) {
@@ -429,6 +453,93 @@ sub sync_all_remote {
 
                 clone($into => "$config{host}:$repopath", $config{email});
             }
+        }
+    }
+}
+
+sub sync_all_gitolite {
+    my %config = @_;
+
+    my @paths;
+    if (ref($config{path})) {
+        @paths = @{$config{path}};
+    } elsif ($config{path}) {
+        @paths = ($config{path});
+    } else {
+        @paths = ();
+    }
+    my $path_match;
+    if (!@paths) {
+        $path_match = ".";
+    } else {
+        my @path_regexps = map {
+            # path can be a glob. If it has no glob characters, we assume it's
+            # a "subdirectory" and want all repositories under it. Either way,
+            # convert it into a regexp for Gitolite.
+            # Gitolite omits leading slashes, so remove it if specified.
+            s{^/}{};
+            $_ = quotemeta($_);
+            if (/\\[*?]/) {
+                # Case #1: path is a glob, convert it into a regexp
+                s{\\\*}{.*}g;
+                s{\\\?}{.}g;
+            } else {
+                # Case #2: path is a "subdirectory"
+                # Ensure the regexp has a trailing slash
+                s{/?$}{/};
+            }
+            $_;
+        } @paths;
+        $path_match = sprintf("^(%s)", join("|", @path_regexps));
+    }
+
+    print colored("  Only one value valid for 'into' when 'gitolitehost' supplied!\n", "red") and return
+        if ref $config{into};
+
+    unless (-d $config{into}) {
+        print colored("  Creating directory '$config{into}'\n", "bold");
+        print colored("  Directory creation failed: $!\n", "bold red") and return
+            unless eval { File::Path::mkpath($config{into}) };
+    }
+
+    my $gitolite_user = $config{gitoliteuser} || "git";
+    my $gitolite_ssh = "$gitolite_user\@$config{gitolitehost}";
+    my @gitolite_repos = ();
+    my $gitolite_info;
+    unless (open($gitolite_info, "-|", "ssh", "$gitolite_ssh", "info", "-p")) {
+        print colored("  Could not open gitolite info via SSH!\n", "bold red");
+        return;
+    }
+    while (my $repo_line = <$gitolite_info>) {
+        chomp($repo_line);
+        my ($repo_perms, $repo_fullpath) = split(/\t/, $repo_line, 2);
+        push(@gitolite_repos, $repo_fullpath) if (
+            defined($repo_fullpath)
+            and $repo_perms =~ /R/
+            and $repo_fullpath =~ /$path_match/
+            );
+    }
+    close($gitolite_info);
+    if ($?) {
+        print colored("  gitolite info exited " . ($? >> 8) . "\n", "bold red");
+        return;
+    } elsif ($!) {
+        print colored("  gitolite I/O error: $!\n", "bold red");
+        return;
+    } elsif (!@gitolite_repos) {
+        print colored("  No repos matched /$path_match/\n", "yellow");
+    }
+
+    for my $repopath (@gitolite_repos) {
+        my ($reponame) = $repopath =~ m{(?:^|/)([^/]*?)(?:\.git)?$};
+        my $into = "$config{into}/$reponame";
+
+        printf "  %-40s ", $reponame;
+        next if already($into => 1);
+        if (-e $into) {
+            update($into, 1);
+        } else {
+            clone($into => "$gitolite_ssh:$repopath", $config{email});
         }
     }
 }
